@@ -2,7 +2,7 @@
   "name": "@mauricio.wolff/mcp-obsidian",
   "version": "0.7.4",
   "description": "Universal AI bridge for Obsidian vaults - connect any MCP-compatible assistant",
-  "author": "bitbonsai",
+  "author": "jbxr",
   "license": "MIT",
   "type": "module",
   "packageManager": "npm@10.9.0+sha512.65a9c38a8172948f617a53619762cd77e12b9950fe1f9239debcb8d62c652f2081824b986fee7c0af6c0a7df615becebe4bf56e17ec27214a87aa29d9e038b4b",
@@ -49,7 +49,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/bitbonsai/mcp-obsidian.git"
+    "url": "https://github.com/jbxr/mcp-obsidian.git"
   },
   "keywords": [
     "mcp",
