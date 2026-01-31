@@ -83,6 +83,46 @@ https://github.com/user-attachments/assets/657ac4c6-1cd2-4cc3-829f-fd095a32f71c
 
 **Success indicators:** Your AI should be able to list files and read notes from your vault.
 
+## Claude Desktop Extension (.mcpb)
+
+**One-Click Installation for Claude Desktop (Recommended for Claude users)**
+
+MCP-Obsidian is now available as a Claude Desktop Extension (.mcpb) for seamless installation:
+
+### What is an MCPB Extension?
+
+MCPB (MCP Bundle) extensions are packaged MCP servers that can be installed in Claude Desktop with a single click - similar to browser extensions. No manual configuration or command-line setup required!
+
+### Installing the Extension
+
+1. **Download the latest release:**
+   - Visit the [Releases page](https://github.com/bitbonsai/mcp-obsidian/releases)
+   - Download the `mcp-obsidian-X.X.X.mcpb` file
+
+2. **Install in Claude Desktop:**
+   - **Option 1:** Double-click the downloaded `.mcpb` file
+   - **Option 2:** Open Claude Desktop → Settings → MCP → Add Server → Browse and select the `.mcpb` file
+
+3. **Configure your vault:**
+   - When prompted, select your Obsidian vault directory
+   - Claude Desktop will automatically configure and start the server
+
+4. **Start using:**
+   - The server will appear in Claude's available tools
+   - Try: "List files in my Obsidian vault" or "Read my note called 'ideas.md'"
+
+### Benefits of MCPB Installation
+
+- ✅ **No command-line required** - Simple GUI installation
+- ✅ **Automatic updates** - Claude Desktop can manage updates
+- ✅ **Easy configuration** - Visual interface for vault selection
+- ✅ **Portable** - Share the `.mcpb` file with team members
+- ✅ **Secure** - All code runs locally on your machine
+
+### Alternative: NPX Installation
+
+If you prefer the traditional method or use other MCP clients (ChatGPT, Claude Code, etc.), continue with the [Quick Start](#quick-start-5-minutes) instructions above.
+
 ## Why MCP-Obsidian?
 
 ### Universal AI Compatibility
@@ -728,6 +768,25 @@ This MCP server implements several security measures to protect your Obsidian va
 3. Make your changes and add tests
 4. Ensure all tests pass: `npm test`
 5. Submit a pull request
+
+### Building the MCPB Bundle
+
+For developers who want to build the Claude Desktop Extension:
+
+```bash
+# Build the TypeScript code and create the .mcpb bundle
+npm run build:mcpb
+
+# This will create: mcp-obsidian-X.X.X.mcpb
+```
+
+The bundle includes:
+- Compiled JavaScript from `dist/`
+- Runtime dependencies from `node_modules/`
+- `manifest.json` with extension metadata
+- `icon.png` for the extension UI
+
+The `.mcpbignore` file controls which files are excluded from the bundle (similar to `.gitignore`).
 
 ## License
 
