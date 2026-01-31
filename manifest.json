@@ -1,0 +1,111 @@
+{
+  "manifest_version": "0.3",
+  "name": "mcp-obsidian",
+  "display_name": "MCP-Obsidian - Universal AI Bridge for Obsidian",
+  "version": "0.7.4",
+  "description": "Connect any MCP-compatible AI assistant to your Obsidian vault with safe read/write access",
+  "long_description": "MCP-Obsidian is a universal AI bridge for Obsidian vaults using the Model Context Protocol (MCP) standard. Connect Claude, ChatGPT, and future AI tools to your knowledge base with safe read/write access while preventing YAML frontmatter corruption. Features include: 12 comprehensive tools (read_note, write_note, delete_note, move_note, list_directory, read_multiple_notes, search_notes, get_frontmatter, update_frontmatter, get_notes_info, manage_tags, patch_note), write modes (overwrite/append/prepend), tag management, path security, and token-optimized responses.",
+  "author": {
+    "name": "bitbonsai",
+    "url": "https://github.com/bitbonsai"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bitbonsai/mcp-obsidian.git"
+  },
+  "homepage": "https://mcp-obsidian.org",
+  "documentation": "https://github.com/bitbonsai/mcp-obsidian#readme",
+  "support": "https://github.com/bitbonsai/mcp-obsidian/issues",
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "dist/server.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/server.js",
+        "${user_config.vault_path}"
+      ]
+    }
+  },
+  "tools": [
+    {
+      "name": "read_note",
+      "description": "Read a note from the vault with parsed frontmatter"
+    },
+    {
+      "name": "write_note",
+      "description": "Write a note to the vault with optional frontmatter (supports overwrite/append/prepend modes)"
+    },
+    {
+      "name": "patch_note",
+      "description": "Efficiently update parts of a note by finding and replacing exact string matches"
+    },
+    {
+      "name": "list_directory",
+      "description": "List files and directories in the vault"
+    },
+    {
+      "name": "delete_note",
+      "description": "Delete a note from the vault (requires confirmation for safety)"
+    },
+    {
+      "name": "move_note",
+      "description": "Move or rename a note in the vault"
+    },
+    {
+      "name": "search_notes",
+      "description": "Search for notes by content or frontmatter with configurable limits"
+    },
+    {
+      "name": "read_multiple_notes",
+      "description": "Read multiple notes in a batch (maximum 10 files)"
+    },
+    {
+      "name": "get_frontmatter",
+      "description": "Extract only the frontmatter from a note without reading full content"
+    },
+    {
+      "name": "update_frontmatter",
+      "description": "Update frontmatter of a note without changing content"
+    },
+    {
+      "name": "get_notes_info",
+      "description": "Get metadata for notes without reading full content"
+    },
+    {
+      "name": "manage_tags",
+      "description": "Add, remove, or list tags in a note (manages both frontmatter and inline tags)"
+    }
+  ],
+  "keywords": [
+    "mcp",
+    "obsidian",
+    "model-context-protocol",
+    "ai-bridge",
+    "claude",
+    "chatgpt",
+    "knowledge-management",
+    "pkm",
+    "vault",
+    "notes",
+    "markdown"
+  ],
+  "license": "MIT",
+  "user_config": {
+    "vault_path": {
+      "type": "directory",
+      "title": "Obsidian Vault Path",
+      "description": "Path to your Obsidian vault directory. The server will have read/write access to .md, .markdown, and .txt files in this directory.",
+      "required": true
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  },
+  "privacy_policies": []
+}

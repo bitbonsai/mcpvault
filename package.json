@@ -14,11 +14,14 @@
   "files": [
     "dist/**/*",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "manifest.json",
+    "icon.png"
   ],
   "scripts": {
     "start": "tsx server.ts",
     "build": "tsc --project tsconfig.build.json",
+    "build:mcpb": "npm run build && mcpb pack . mcp-obsidian.mcpb",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepublishOnly": "npm run build && npm test",
@@ -32,6 +35,7 @@
     "gray-matter": "^4.0.3"
   },
   "devDependencies": {
+    "@anthropic-ai/mcpb": "^2.1.2",
     "@types/node": "^24.10.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",

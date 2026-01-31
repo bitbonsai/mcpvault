@@ -135,3 +135,6 @@ website/.astro/
 website/.wrangler/
 website/package-lock.json
 website/bun.lock
+
+# MCPB bundles
+*.mcpb

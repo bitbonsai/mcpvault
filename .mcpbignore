@@ -1,0 +1,91 @@
+# Development dependencies and test files
+vitest.config.ts
+tsconfig.json
+tsconfig.build.json
+*.test.ts
+*.test.js
+
+# Source TypeScript files (only need compiled JS)
+server.ts
+src/**/*.ts
+
+# Build artifacts
+*.tsbuildinfo
+
+# Node modules (will use production dependencies only)
+# Keep runtime dependencies but exclude dev dependencies
+node_modules/@types
+node_modules/vitest
+node_modules/tsx
+node_modules/typescript
+node_modules/@vitest
+node_modules/vite
+node_modules/esbuild
+node_modules/@esbuild
+node_modules/rollup
+
+# Test files in dependencies
+node_modules/**/test/
+node_modules/**/tests/
+node_modules/**/*.test.js
+node_modules/**/*.test.ts
+node_modules/**/dist-test*/
+
+# Website directory (not needed for MCP server)
+website/
+
+# Git files
+.git/
+.gitignore
+.github/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# NPM files
+.npmignore
+.npmrc
+
+# Documentation that's not needed in bundle
+CHANGELOG.md
+SECURITY.md
+CLAUDE.md
+
+# Debug files
+debug-server.js
+
+# Lock files
+package-lock.json
+bun.lock
+
+# Other bundles
+*.mcpb
+
+# NVM
+.nvmrc
+
+# Dependency examples, demos, and docs
+node_modules/**/demo/
+node_modules/**/example/
+node_modules/**/examples/
+node_modules/**/docs/
+node_modules/**/*.md
+node_modules/**/LICENSE
+node_modules/**/CHANGELOG
+
