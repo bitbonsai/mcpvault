@@ -14,12 +14,9 @@ A universal AI bridge for Obsidian vaults using the Model Context Protocol (MCP)
 
 <div align="center">
 
-[![GitHub Stars](https://img.shields.io/github/stars/bitbonsai/mcp-obsidian?style=flat&logo=github&logoColor=white&color=9065ea&labelColor=262626)](https://github.com/bitbonsai/mcp-obsidian)
+[![GitHub Stars](https://img.shields.io/github/stars/jbxr/mcp-obsidian?style=flat&logo=github&logoColor=white&color=9065ea&labelColor=262626)](https://github.com/jbxr/mcp-obsidian)
 [![npm version](https://img.shields.io/npm/v/@mauricio.wolff/mcp-obsidian?style=flat&logo=npm&logoColor=white&color=9065ea&labelColor=262626)](https://www.npmjs.com/package/@mauricio.wolff/mcp-obsidian)
 [![npm downloads](https://img.shields.io/npm/dt/@mauricio.wolff/mcp-obsidian?style=flat&logo=npm&logoColor=white&color=9065ea&labelColor=262626)](https://www.npmjs.com/package/@mauricio.wolff/mcp-obsidian)
-[![GitHub Sponsors](https://img.shields.io/github/sponsors/BitBonsai?style=flat&logo=github&logoColor=white&color=9065ea&labelColor=262626)](https://github.com/sponsors/bitbonsai)
-[![Ko-Fi](https://img.shields.io/badge/Ko--fi-Support%20Me-9065ea?style=flat&logo=ko-fi&logoColor=white&labelColor=262626)](https://ko-fi.com/bitbonsai)
-[![Liberapay](https://img.shields.io/badge/Liberapay-Weekly%20Support-9065ea?style=flat&logo=liberapay&logoColor=white&labelColor=262626)](https://liberapay.com/bitbonsai/)
 
 </div>
 
@@ -96,7 +93,7 @@ MCPB (MCP Bundle) extensions are packaged MCP servers that can be installed in C
 ### Installing the Extension
 
 1. **Download the latest release:**
-   - Visit the [Releases page](https://github.com/bitbonsai/mcp-obsidian/releases)
+   - Visit the [Releases page](https://github.com/jbxr/mcp-obsidian/releases)
    - Download the `mcp-obsidian-X.X.X.mcpb` file
 
 2. **Install in Claude Desktop:**
@@ -387,7 +384,7 @@ npx @mauricio.wolff/mcp-obsidian /path/to/vault 2>debug.log
 
 ### Getting Help
 
-- [Open an issue](https://github.com/bitbonsai/mcp-obsidian/issues) on GitHub
+- [Open an issue](https://github.com/jbxr/mcp-obsidian/issues) on GitHub
 - Include your OS, Node.js version, and error messages
 - Provide the vault directory structure (without sensitive content)
 
