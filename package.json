@@ -21,7 +21,7 @@
   "scripts": {
     "start": "tsx server.ts",
     "build": "tsc --project tsconfig.build.json",
-    "build:mcpb": "npm run build && mcpb pack . mcp-obsidian.mcpb",
+    "build:mcpb": "npm run build && mcpb pack . mcp-obsidian-$(node -p \"require('./package.json').version\").mcpb",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepublishOnly": "npm run build && npm test",
