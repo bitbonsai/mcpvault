@@ -74,6 +74,10 @@
       "description": "Get metadata for notes without reading full content"
     },
     {
+      "name": "get_vault_stats",
+      "description": "Get vault statistics including total notes, folders, size, and recently modified files"
+    },
+    {
       "name": "manage_tags",
       "description": "Add, remove, or list tags in a note (manages both frontmatter and inline tags)"
     }
