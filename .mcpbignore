@@ -4,7 +4,7 @@ tsconfig.json
 tsconfig.build.json
 *.test.ts
 *.test.js
-
+dist/**/*.test.js
 # Source TypeScript files (only need compiled JS)
 server.ts
 src/**/*.ts
