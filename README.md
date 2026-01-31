@@ -736,6 +736,11 @@ This MCP server implements several security measures to protect your Obsidian va
 - **Function/Symbol Prevention:** Dangerous JavaScript objects are blocked from frontmatter
 - **Data Type Checking:** Only safe data types (strings, numbers, arrays, objects) allowed
 
+### Dependency Security
+- **CVE Monitoring:** All dependencies are regularly audited for known vulnerabilities
+- **Security Overrides:** Critical vulnerabilities are patched via npm overrides (e.g., tmp@>=0.2.4 to fix CVE-2025-54798)
+- **Zero Vulnerabilities:** Current deployment maintains zero known security vulnerabilities
+
 ### Best Practices
 - **Least Privilege:** Server only accesses the specified vault directory
 - **Read-Only by Default:** Consider running with read-only permissions for sensitive vaults
