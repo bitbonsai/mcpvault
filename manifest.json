@@ -4,7 +4,7 @@
   "display_name": "MCP-Obsidian - Universal AI Bridge for Obsidian",
   "version": "0.7.4",
   "description": "Connect any MCP-compatible AI assistant to your Obsidian vault with safe read/write access",
-  "long_description": "MCP-Obsidian is a universal AI bridge for Obsidian vaults using the Model Context Protocol (MCP) standard. Connect Claude, ChatGPT, and future AI tools to your knowledge base with safe read/write access while preventing YAML frontmatter corruption. Features include: 12 comprehensive tools (read_note, write_note, delete_note, move_note, list_directory, read_multiple_notes, search_notes, get_frontmatter, update_frontmatter, get_notes_info, manage_tags, patch_note), write modes (overwrite/append/prepend), tag management, path security, and token-optimized responses.",
+  "long_description": "MCP-Obsidian is a universal AI bridge for Obsidian vaults using the Model Context Protocol (MCP) standard. Connect Claude, ChatGPT, and future AI tools to your knowledge base with safe read/write access while preventing YAML frontmatter corruption. Features include: 13 comprehensive tools (read_note, write_note, delete_note, move_note, list_directory, read_multiple_notes, search_notes, get_frontmatter, update_frontmatter, get_notes_info, get_vault_stats, manage_tags, patch_note), write modes (overwrite/append/prepend), tag management, path security, and token-optimized responses.",
   "author": {
     "name": "bitbonsai",
     "url": "https://github.com/bitbonsai"
