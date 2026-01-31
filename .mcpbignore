@@ -23,6 +23,7 @@ node_modules/vite
 node_modules/esbuild
 node_modules/@esbuild
 node_modules/rollup
+node_modules/@anthropic-ai/mcpb
 
 # Test files in dependencies
 node_modules/**/test/
