@@ -1,9 +1,8 @@
 {
-  "name": "@bitbonsai/mcpvault",
-  "version": "0.11.0",
-  "description": "Universal AI bridge for Obsidian vaults - connect any MCP-compatible assistant",
-  "homepage": "https://mcpvault.org",
-  "author": "bitbonsai",
+  "name": "obsidian-vault-mcp",
+  "version": "1.0.0",
+  "description": "Safe, link-aware MCP server for Obsidian vaults — no deletion, full wiki-link and backlink support",
+  "author": "Jay",
   "license": "MIT",
   "type": "module",
   "packageManager": "npm@10.9.0+sha512.65a9c38a8172948f617a53619762cd77e12b9950fe1f9239debcb8d62c652f2081824b986fee7c0af6c0a7df615becebe4bf56e17ec27214a87aa29d9e038b4b",
@@ -16,6 +15,7 @@
     }
   },
   "bin": {
+    "obsidian-vault-mcp": "dist/server.js",
     "mcpvault": "dist/server.js"
   },
   "files": [

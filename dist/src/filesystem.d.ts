@@ -1,6 +1,6 @@
 import { FrontmatterHandler } from './frontmatter.js';
 import { PathFilter } from './pathfilter.js';
-import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats } from './types.js';
+import type { ParsedNote, DirectoryListing, NoteWriteParams, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats } from './types.js';
 export declare class FileSystemService {
     private vaultPath;
     private frontmatterHandler;
@@ -13,7 +13,21 @@ export declare class FileSystemService {
     listDirectory(path?: string): Promise<DirectoryListing>;
     exists(path: string): Promise<boolean>;
     isDirectory(path: string): Promise<boolean>;
-    deleteNote(params: DeleteNoteParams): Promise<DeleteResult>;
+    /**
+     * Save a snapshot of a file to _trash/ with a timestamped "deleted-" prefix.
+     * Can accept pre-read content to guarantee the backup captures the correct state
+     * even if the file on disk has already been modified by a prior operation.
+     */
+    backupToTrash(relativePath: string, snapshotContent?: string): Promise<string>;
+    /**
+     * Soft-delete: moves the file to _trash/ instead of permanently deleting it.
+     */
+    softDeleteNote(path: string): Promise<{
+        success: boolean;
+        path: string;
+        trashPath?: string;
+        message: string;
+    }>;
     moveNote(params: MoveNoteParams): Promise<MoveResult>;
     moveFile(params: MoveFileParams): Promise<MoveResult>;
     readMultipleNotes(params: BatchReadParams): Promise<BatchReadResult>;

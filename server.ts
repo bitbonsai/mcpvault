@@ -9,52 +9,88 @@ import { dirname, join, resolve } from "path";
 // Get package.json version
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const packageJson = JSON.parse(
-  readFileSync(join(__dirname, "../package.json"), "utf-8")
-);
-const VERSION = packageJson.version;
 
-// Handle --version and --help flags
+let VERSION = "1.0.0";
+try {
+  const packageJson = JSON.parse(
+    readFileSync(join(__dirname, "package.json"), "utf-8")
+  );
+  VERSION = packageJson.version;
+} catch {
+  // Fallback if package.json not found (e.g. running from dist/)
+  try {
+    const packageJson = JSON.parse(
+      readFileSync(join(__dirname, "../package.json"), "utf-8")
+    );
+    VERSION = packageJson.version;
+  } catch { /* use default */ }
+}
+
+// Parse CLI args
 const cliArgs = process.argv.slice(2);
-const firstArg = cliArgs[0];
 
-if (firstArg === "--version" || firstArg === "-v") {
+const flags = new Set<string>();
+const positionalArgs: string[] = [];
+
+for (const arg of cliArgs) {
+  if (arg.startsWith('--') || arg.startsWith('-')) {
+    flags.add(arg);
+  } else {
+    positionalArgs.push(arg);
+  }
+}
+
+if (flags.has("--version") || flags.has("-v")) {
   console.log(VERSION);
   process.exit(0);
 }
 
-if (firstArg === "--help" || firstArg === "-h") {
+if (flags.has("--help") || flags.has("-h")) {
   console.log(`
-mcpvault v${VERSION}
+obsidian-vault-mcp v${VERSION}
 
-Universal AI bridge for Obsidian vaults - connect any MCP-compatible assistant
+Safe, link-aware MCP server for Obsidian vaults.
+Full wiki-link and backlink support. All destructive operations
+use soft-delete — originals are moved to _trash/, never permanently removed.
 
 Usage:
-  npx @bitbonsai/mcpvault [vault-path]
+  npx obsidian-vault-mcp [vault-path]
 
 Arguments:
-  [vault-path]    Optional path to your Obsidian vault directory
-                  Defaults to current working directory when omitted
+  [vault-path]    Path to your Obsidian vault directory
+                  Defaults to current working directory
 
 Options:
   --version, -v   Show version number
   --help, -h      Show this help message
 
+Safety:
+  - delete_note moves files to _trash/ (soft delete, always recoverable)
+  - write_note in overwrite mode auto-backs up the original to _trash/
+  - append and prepend modes never replace existing content
+  - _trash/ folder can be cleaned up manually whenever you like
+
 Examples:
-  npx @bitbonsai/mcpvault
-  npx @bitbonsai/mcpvault ~/Documents/MyVault
-  npx @bitbonsai/mcpvault ./Vault
-  npx @bitbonsai/mcpvault /path/to/obsidian/vault
-  npx @bitbonsai/mcpvault "/path/with spaces/Obsidian Vault"
+  npx obsidian-vault-mcp ~/Documents/MyVault
+  npx obsidian-vault-mcp ./Vault
+  npx obsidian-vault-mcp "/path/with spaces/Obsidian Vault"
 `);
   process.exit(0);
 }
 
-// Join trailing args to support vault paths with spaces.
-// When omitted, default to current working directory.
-const vaultPathArg = cliArgs.join(' ').trim();
+// Join positional args to support vault paths with spaces
+const vaultPathArg = positionalArgs.join(' ').trim();
 const vaultPath = resolve(vaultPathArg || process.cwd());
 
-const server = createServer(vaultPath, { version: VERSION });
+// Create server and build index
+const { server, index } = createServer(vaultPath, { version: VERSION });
+
+// Build vault index before accepting connections
+const indexStart = Date.now();
+await index.build();
+const indexTime = Date.now() - indexStart;
+process.stderr.write(`[obsidian-vault-mcp] Indexed ${index.noteCount} notes with ${index.linkCount} links in ${indexTime}ms\n`);
+
+// Connect via stdio
 const transport = new StdioServerTransport();
 await server.connect(transport);

@@ -1,9 +1,11 @@
-import { join, resolve, relative, dirname } from 'path';
+import { join, resolve, relative, dirname, basename } from 'path';
 import { readdir, stat, readFile, writeFile, unlink, mkdir, access, rename, copyFile } from 'node:fs/promises';
 import { constants, realpathSync } from 'node:fs';
 import { FrontmatterHandler } from './frontmatter.js';
 import { PathFilter } from './pathfilter.js';
 import { generateObsidianUri } from './uri.js';
+/** Folder inside the vault where soft-deleted / overwritten originals are kept */
+const TRASH_FOLDER = '_trash';
 export class FileSystemService {
     vaultPath;
     frontmatterHandler;
@@ -130,7 +132,12 @@ export class FileSystemService {
         try {
             let finalContent;
             if (mode === 'overwrite') {
-                // Original behavior - replace entire content
+                // Read and snapshot the original content FIRST, before any writes
+                const fileExists = await this.exists(path);
+                if (fileExists) {
+                    const originalContent = await readFile(fullPath, 'utf-8');
+                    await this.backupToTrash(path, originalContent);
+                }
                 finalContent = frontmatter
                     ? this.frontmatterHandler.stringify(frontmatter, content)
                     : content;
@@ -232,6 +239,9 @@ export class FileSystemService {
                     matchCount: occurrences
                 };
             }
+            // Back up the original content we already read — pass it directly
+            // so the backup is guaranteed to be the pre-patch state
+            await this.backupToTrash(path, fullContent);
             // Perform the replacement
             const updatedContent = replaceAll
                 ? fullContent.split(oldString).join(newString)
@@ -341,63 +351,78 @@ export class FileSystemService {
             return false;
         }
     }
-    async deleteNote(params) {
-        const { path, confirmPath } = params;
-        // Confirmation check - paths must match exactly
-        if (path !== confirmPath) {
-            return {
-                success: false,
-                path: path,
-                message: "Deletion cancelled: confirmation path does not match. For safety, both 'path' and 'confirmPath' must be identical."
-            };
+    /**
+     * Save a snapshot of a file to _trash/ with a timestamped "deleted-" prefix.
+     * Can accept pre-read content to guarantee the backup captures the correct state
+     * even if the file on disk has already been modified by a prior operation.
+     */
+    async backupToTrash(relativePath, snapshotContent) {
+        const fullPath = this.resolvePath(relativePath);
+        // Build trash destination: _trash/deleted-20260326-153012-OriginalName.md
+        const now = new Date();
+        const timestamp = now.getFullYear().toString()
+            + String(now.getMonth() + 1).padStart(2, '0')
+            + String(now.getDate()).padStart(2, '0')
+            + '-'
+            + String(now.getHours()).padStart(2, '0')
+            + String(now.getMinutes()).padStart(2, '0')
+            + String(now.getSeconds()).padStart(2, '0'); // 20260326-153012
+        const fileName = basename(relativePath);
+        const trashRelative = `${TRASH_FOLDER}/deleted-${timestamp}-${fileName}`;
+        const trashFull = join(this.vaultPath, trashRelative);
+        // Ensure _trash/ exists
+        await mkdir(dirname(trashFull), { recursive: true });
+        if (snapshotContent !== undefined) {
+            // Write the pre-captured content — guaranteed to be the original state
+            await writeFile(trashFull, snapshotContent, 'utf-8');
         }
-        const fullPath = this.resolvePath(path);
+        else {
+            // Read from disk right now and write to trash
+            const content = await readFile(fullPath, 'utf-8');
+            await writeFile(trashFull, content, 'utf-8');
+        }
+        return trashRelative;
+    }
+    /**
+     * Soft-delete: moves the file to _trash/ instead of permanently deleting it.
+     */
+    async softDeleteNote(path) {
         if (!this.pathFilter.isAllowed(path)) {
             return {
                 success: false,
-                path: path,
-                message: `Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`
+                path,
+                message: `Access denied: ${path}. This path is restricted.`
             };
         }
+        const fullPath = this.resolvePath(path);
+        // Can't delete directories
+        const isDir = await this.isDirectory(path);
+        if (isDir) {
+            return { success: false, path, message: `Cannot delete: ${path} is a directory, not a file.` };
+        }
+        // Check exists
+        const fileExists = await this.exists(path);
+        if (!fileExists) {
+            return { success: false, path, message: `File not found: ${path}. Use list_directory to see available files.` };
+        }
         try {
-            // Check if it's a directory first (can't delete directories with this method)
-            const isDir = await this.isDirectory(path);
-            if (isDir) {
-                return {
-                    success: false,
-                    path: path,
-                    message: `Cannot delete: ${path} is not a file`
-                };
-            }
-            // Perform the deletion using Node.js native API
+            // Read the content first, then save to trash with that snapshot
+            const originalContent = await readFile(fullPath, 'utf-8');
+            const trashPath = await this.backupToTrash(path, originalContent);
+            // Remove original
             await unlink(fullPath);
             return {
                 success: true,
-                path: path,
-                message: `Successfully deleted note: ${path}. This action cannot be undone.`
+                path,
+                trashPath,
+                message: `Soft-deleted ${path} → moved to ${trashPath}. You can recover it from the _trash folder.`
             };
         }
         catch (error) {
-            if (error instanceof Error && 'code' in error) {
-                if (error.code === 'ENOENT') {
-                    return {
-                        success: false,
-                        path: path,
-                        message: `File not found: ${path}. Use list_directory to see available files.`
-                    };
-                }
-                if (error.code === 'EACCES') {
-                    return {
-                        success: false,
-                        path: path,
-                        message: `Permission denied: ${path}. The file exists but cannot be deleted due to filesystem permissions.`
-                    };
-                }
-            }
             return {
                 success: false,
-                path: path,
-                message: `Failed to delete file: ${path} - ${error instanceof Error ? error.message : 'Unknown error'}`
+                path,
+                message: `Failed to delete: ${error instanceof Error ? error.message : 'Unknown error'}`
             };
         }
     }
