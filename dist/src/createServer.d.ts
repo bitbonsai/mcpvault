@@ -5,6 +5,7 @@ export interface CreateServerOptions {
     name?: string;
     version?: string;
     pathFilter?: PathFilter;
+    excludePatterns?: string[];
     frontmatterHandler?: FrontmatterHandler;
 }
 export declare function createServer(vaultPath: string, options?: CreateServerOptions): Server;

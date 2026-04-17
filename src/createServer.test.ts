@@ -1,6 +1,6 @@
 import { test, expect, beforeEach, afterEach } from "vitest";
 import { createServer } from "./createServer.js";
-import { mkdtemp, rm } from "fs/promises";
+import { mkdtemp, rm, mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -93,3 +93,88 @@ test("custom options are applied", () => {
   });
   expect(server).toBeDefined();
 });
+
+test("excludePatterns blocks notes in excluded folders", async () => {
+  const server = createServer(testVaultPath, {
+    version: "1.0.0",
+    excludePatterns: ["Private", "Private/**"]
+  });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+
+  const client = new Client({ name: "test-client", version: "1.0.0" });
+
+  await Promise.all([
+    client.connect(clientTransport),
+    server.connect(serverTransport),
+  ]);
+
+  // Write directly to disk (bypassing the server) so the file exists
+  const { join } = await import("path");
+  await mkdir(join(testVaultPath, "Private"), { recursive: true });
+  await writeFile(join(testVaultPath, "Private", "secret.md"), "secret content");
+
+  // Server should refuse to read it
+  const result = await client.callTool({ name: "read_note", arguments: { path: "Private/secret.md" } });
+  expect((result as any).isError).toBe(true);
+
+  await client.close();
+  await server.close();
+});
+
+test("excludePatterns hides excluded notes from search_notes", async () => {
+  const server = createServer(testVaultPath, {
+    version: "1.0.0",
+    excludePatterns: ["Private", "Private/**"]
+  });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "test-client", version: "1.0.0" });
+
+  await Promise.all([
+    client.connect(clientTransport),
+    server.connect(serverTransport),
+  ]);
+
+  const { join } = await import("path");
+  await mkdir(join(testVaultPath, "Private"), { recursive: true });
+  await writeFile(join(testVaultPath, "Private", "secret.md"), "# Secret\n\ncontains secretkeyword");
+  await writeFile(join(testVaultPath, "public.md"), "# Public\n\ncontains secretkeyword");
+
+  const result = await client.callTool({ name: "search_notes", arguments: { query: "secretkeyword", limit: 10 } });
+  const parsed = JSON.parse((result.content as any)[0].text);
+
+  const paths = parsed.map((r: any) => r.p);
+  expect(paths).not.toContain("Private/secret.md");
+  expect(paths).toContain("public.md");
+
+  await client.close();
+  await server.close();
+});
+
+test("excludePatterns hides excluded dirs from list_directory", async () => {
+  const server = createServer(testVaultPath, {
+    version: "1.0.0",
+    excludePatterns: ["Private", "Private/**"]
+  });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "test-client", version: "1.0.0" });
+
+  await Promise.all([
+    client.connect(clientTransport),
+    server.connect(serverTransport),
+  ]);
+
+  const { join } = await import("path");
+  await mkdir(join(testVaultPath, "Private"), { recursive: true });
+  await mkdir(join(testVaultPath, "public"), { recursive: true });
+  await writeFile(join(testVaultPath, "Private", "secret.md"), "secret");
+  await writeFile(join(testVaultPath, "public", "note.md"), "public");
+
+  const result = await client.callTool({ name: "list_directory", arguments: {} });
+  const parsed = JSON.parse((result.content as any)[0].text);
+
+  expect(parsed.dirs).not.toContain("Private");
+  expect(parsed.dirs).toContain("public");
+
+  await client.close();
+  await server.close();
+}); 

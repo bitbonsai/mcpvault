@@ -26,12 +26,13 @@ Usage:
   npx @bitbonsai/mcpvault [vault-path]
 
 Arguments:
-  [vault-path]    Optional path to your Obsidian vault directory
-                  Defaults to current working directory when omitted
+  [vault-path]          Optional path to your Obsidian vault directory
+                        Defaults to current working directory when omitted
 
 Options:
-  --version, -v   Show version number
-  --help, -h      Show this help message
+  --version, -v         Show version number
+  --help, -h            Show this help message
+  --exclude <pattern>   Exclude a path or glob from the vault (repeatable)
 
 Examples:
   npx @bitbonsai/mcpvault
@@ -39,13 +40,25 @@ Examples:
   npx @bitbonsai/mcpvault ./Vault
   npx @bitbonsai/mcpvault /path/to/obsidian/vault
   npx @bitbonsai/mcpvault "/path/with spaces/Obsidian Vault"
+  npx @bitbonsai/mcpvault ./Vault --exclude Private --exclude "Private/**"
 `);
     process.exit(0);
 }
+// Separate --exclude flags from positional args
+const excludePatterns = [];
+const positionalArgs = [];
+for (let i = 0; i < cliArgs.length; i++) {
+    if (cliArgs[i] === '--exclude' && i + 1 < cliArgs.length) {
+        excludePatterns.push(cliArgs[++i]);
+    }
+    else {
+        positionalArgs.push(cliArgs[i]);
+    }
+}
 // Join trailing args to support vault paths with spaces.
 // When omitted, default to current working directory.
-const vaultPathArg = cliArgs.join(' ').trim();
+const vaultPathArg = positionalArgs.join(' ').trim();
 const vaultPath = resolve(vaultPathArg || process.cwd());
-const server = createServer(vaultPath, { version: VERSION });
+const server = createServer(vaultPath, { version: VERSION, excludePatterns });
 const transport = new StdioServerTransport();
 await server.connect(transport);

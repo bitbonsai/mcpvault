@@ -13,6 +13,7 @@ export interface CreateServerOptions {
   name?: string;
   version?: string;
   pathFilter?: PathFilter;
+  excludePatterns?: string[]; // Ignored if pathFilter provided.
   frontmatterHandler?: FrontmatterHandler;
 }
 
@@ -20,7 +21,7 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
   const {
     name = "mcpvault",
     version = "0.0.0",
-    pathFilter = new PathFilter(),
+    pathFilter = new PathFilter(options.excludePatterns ? {ignoredPatterns: options.excludePatterns } : undefined),
     frontmatterHandler = new FrontmatterHandler(),
   } = options;
 
