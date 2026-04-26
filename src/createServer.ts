@@ -14,7 +14,29 @@ export interface CreateServerOptions {
   version?: string;
   pathFilter?: PathFilter;
   frontmatterHandler?: FrontmatterHandler;
+  /**
+   * When true, all mutating tools (write_note, patch_note, delete_note,
+   * move_note, move_file, update_frontmatter, manage_tags) reject calls
+   * with a clear error. Read tools remain available. Enforces the
+   * `--read-only` CLI flag advertised in the documentation.
+   */
+  readOnly?: boolean;
 }
+
+// Tools that modify vault content. Calls to any of these are rejected when
+// the server is constructed with `readOnly: true`. The list is hard-coded
+// (rather than derived from a per-tool `mutating: true` field) to keep the
+// safety check independent of any future schema changes that might miss a
+// mutating tool by accident.
+const MUTATING_TOOLS = new Set<string>([
+  "write_note",
+  "patch_note",
+  "delete_note",
+  "move_note",
+  "move_file",
+  "update_frontmatter",
+  "manage_tags",
+]);
 
 export function createServer(vaultPath: string, options: CreateServerOptions = {}): Server {
   const {
@@ -22,6 +44,7 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
     version = "0.0.0",
     pathFilter = new PathFilter(),
     frontmatterHandler = new FrontmatterHandler(),
+    readOnly = false,
   } = options;
 
   const resolvedVaultPath = resolve(vaultPath);
@@ -235,6 +258,23 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name: toolName, arguments: args } = request.params;
     const trimmedArgs = trimPaths(args);
+
+    // Read-only enforcement: when the server is started with `readOnly: true`
+    // (via the `--read-only` CLI flag in server.ts), reject any call to a
+    // mutating tool with a clear error. This is checked BEFORE the tool runs,
+    // so the vault is guaranteed untouched regardless of which mutating tool
+    // was called or what its arguments were.
+    if (readOnly && MUTATING_TOOLS.has(toolName)) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error: '${toolName}' is a mutating tool and the mcpvault server is running in read-only mode (--read-only flag). Restart the server without --read-only to enable mutations.`,
+          },
+        ],
+        isError: true,
+      };
+    }
 
     try {
       switch (toolName) {
