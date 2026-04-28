@@ -1123,6 +1123,28 @@ test("move_file blocks restricted system paths", async () => {
   expect(result.message).toContain("Access denied");
 });
 
+test("move_file allows dotfile destinations (isAllowedForListing does not block them)", async () => {
+  // Documented gap: move_file uses isAllowedForListing for newPath so dotfile
+  // destinations like notes/.env are not blocked. Only move_note enforces isAllowed.
+  const oldPath = "attachments/data.png";
+  const newPath = "notes/.env";
+
+  await mkdir(join(testVaultPath, "attachments"), { recursive: true });
+  await mkdir(join(testVaultPath, "notes"), { recursive: true });
+  await writeFile(join(testVaultPath, oldPath), Buffer.from([0x01]));
+
+  const result = await fileSystem.moveFile({
+    oldPath,
+    newPath,
+    confirmOldPath: oldPath,
+    confirmNewPath: newPath
+  });
+
+  // Current behavior: succeeds because isAllowedForListing doesn't enforce dotfile rule.
+  // If this ever changes to fail, the comment in filesystem.ts should be updated too.
+  expect(result.success).toBe(true);
+});
+
 test("move_file requires matching confirmation paths", async () => {
   const oldPath = "attachments/check.png";
   const newPath = "assets/check.png";

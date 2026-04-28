@@ -336,9 +336,9 @@ describe("PathFilter", () => {
       expect(filter.isAllowed("notes/.env")).toBe(false);
     });
 
-    test("allows dotfiles that ARE an allowed extension (e.g. .md)", () => {
+    test("allows hidden files with an allowed extension (e.g. .hidden.md)", () => {
       const filter = new PathFilter();
-      expect(filter.isAllowed(".md")).toBe(true);
+      expect(filter.isAllowed(".hidden.md")).toBe(true);
     });
 
     test("allows extensionless non-dotfile paths (likely directories)", () => {

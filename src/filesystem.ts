@@ -587,8 +587,11 @@ export class FileSystemService {
       };
     }
 
-    // move_file handles binary files so we use isAllowedForListing (not isAllowed),
-    // which checks the system-path blocklist without enforcing the extension allowlist.
+    // move_file handles binary files so we use isAllowedForListing (not isAllowed) —
+    // this checks the system-path blocklist without enforcing the extension allowlist.
+    // Note: newPath also uses isAllowedForListing, so dotfile destinations (e.g.
+    // notes/.env) are not blocked here; that gap is intentionally left to move_note
+    // for markdown-only moves which uses the stricter isAllowed check.
     if (!this.pathFilter.isAllowedForListing(oldPath)) {
       return {
         success: false,

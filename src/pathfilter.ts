@@ -55,12 +55,8 @@ export class PathFilter {
       return false;
     }
 
-    // Enforce extension allowlist for recognized file paths.
-    // Also block dotfiles (e.g. .bashrc, .zshrc) that don't end with an allowed
-    // extension — isFile() returns false for them, so they would otherwise bypass
-    // the allowlist entirely and could be used to overwrite shell config files.
-    // Extensionless paths without a leading dot (e.g. "notes", "1. Project") are
-    // left through as they are typically directory names, not files.
+    // Dotfiles (e.g. .bashrc) return false from isFile() so they'd bypass the
+    // extension allowlist without this explicit check.
     if (this.allowedExtensions.length > 0 && !normalizedPath.endsWith('/')) {
       const hasAllowedExtension = this.allowedExtensions.some(ext =>
         normalizedPath.toLowerCase().endsWith(ext.toLowerCase())
@@ -71,9 +67,6 @@ export class PathFilter {
           return false;
         }
       } else if (!hasAllowedExtension) {
-        // isFile() returned false — check whether the last component is a dotfile.
-        // Dotfiles that don't end with an allowed extension are denied.
-        // Extensionless non-dotfile paths are allowed (likely directories).
         const lastSlashIndex = normalizedPath.lastIndexOf('/');
         const lastComponent = lastSlashIndex === -1
           ? normalizedPath
