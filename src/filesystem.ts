@@ -587,6 +587,8 @@ export class FileSystemService {
       };
     }
 
+    // move_file handles binary files so we use isAllowedForListing (not isAllowed),
+    // which checks the system-path blocklist without enforcing the extension allowlist.
     if (!this.pathFilter.isAllowedForListing(oldPath)) {
       return {
         success: false,

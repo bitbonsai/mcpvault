@@ -305,4 +305,47 @@ describe("PathFilter", () => {
       expect(filter.isAllowed("1. Project/file.js")).toBe(false);
     });
   });
+
+  describe("security: case-insensitive blocklist bypass", () => {
+    test("blocks mixed-case .obsidian paths on case-insensitive filesystems", () => {
+      const filter = new PathFilter();
+      expect(filter.isAllowed(".Obsidian/app.json")).toBe(false);
+      expect(filter.isAllowed(".OBSIDIAN/app.json")).toBe(false);
+      expect(filter.isAllowed(".ObSiDiAn/community-plugins.json")).toBe(false);
+    });
+
+    test("blocks mixed-case .git paths", () => {
+      const filter = new PathFilter();
+      expect(filter.isAllowed(".Git/config")).toBe(false);
+      expect(filter.isAllowed(".GIT/hooks/post-merge")).toBe(false);
+      expect(filter.isAllowed(".Git/hooks/post-merge")).toBe(false);
+    });
+
+    test("blocks mixed-case node_modules", () => {
+      const filter = new PathFilter();
+      expect(filter.isAllowed("Node_Modules/evil/index.js")).toBe(false);
+      expect(filter.isAllowed("NODE_MODULES/evil")).toBe(false);
+    });
+  });
+
+  describe("security: dotfile bypass", () => {
+    test("blocks dotfiles that are not allowed extensions", () => {
+      const filter = new PathFilter();
+      expect(filter.isAllowed(".bashrc")).toBe(false);
+      expect(filter.isAllowed(".zshrc")).toBe(false);
+      expect(filter.isAllowed("notes/.env")).toBe(false);
+    });
+
+    test("allows dotfiles that ARE an allowed extension (e.g. .md)", () => {
+      const filter = new PathFilter();
+      expect(filter.isAllowed(".md")).toBe(true);
+    });
+
+    test("allows extensionless non-dotfile paths (likely directories)", () => {
+      const filter = new PathFilter();
+      expect(filter.isAllowed("notes")).toBe(true);
+      expect(filter.isAllowed("Makefile")).toBe(true);
+      expect(filter.isAllowed("attachments/folder")).toBe(true);
+    });
+  });
 });
