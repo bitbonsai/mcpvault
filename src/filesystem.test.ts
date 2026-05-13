@@ -2,8 +2,8 @@ import { test, expect, beforeEach, afterEach, describe } from "vitest";
 import { FileSystemService, classifyWriteError } from "./filesystem.js";
 import { PathFilter } from "./pathfilter.js";
 import { writeFile, readFile, mkdir, mkdtemp, rm, symlink } from "fs/promises";
-import { join } from "path";
-import { tmpdir } from "os";
+import { join, relative } from "path";
+import { tmpdir, homedir } from "os";
 
 let testVaultPath: string;
 let fileSystem: FileSystemService;
@@ -874,6 +874,57 @@ test("path traversal with .. is blocked", async () => {
 test("path traversal with nested .. is blocked", async () => {
   await expect(fileSystem.readNote("folder/../../outside.md"))
     .rejects.toThrow(/Path traversal not allowed/);
+});
+
+// ============================================================================
+// DEFENSIVE VAULT-PREFIX STRIPPING
+// ============================================================================
+
+test("path containing vault prefix is resolved correctly", async () => {
+  const testPath = "wiki/note.md";
+  const content = "# Note\n\nSome content here.";
+
+  await mkdir(join(testVaultPath, "wiki"), { recursive: true });
+  await writeFile(join(testVaultPath, testPath), content);
+
+  // Simulate a client passing an absolute path that includes the vault prefix.
+  // Use the resolved vault path (realpathSync) since that's what FileSystemService stores.
+  const resolvedVaultPath = fileSystem.getVaultPath();
+  const absolutePath = resolvedVaultPath + "/" + testPath;
+  const note = await fileSystem.readNote(absolutePath);
+
+  expect(note.content).toContain("Some content here.");
+});
+
+test("path containing vault prefix without trailing slash is resolved correctly", async () => {
+  const content = "# Root Note\n\nRoot content.";
+  await writeFile(join(testVaultPath, "root-note.md"), content);
+
+  const resolvedVaultPath = fileSystem.getVaultPath();
+  const absolutePath = resolvedVaultPath + "/root-note.md";
+  const note = await fileSystem.readNote(absolutePath);
+
+  expect(note.content).toContain("Root content.");
+});
+
+test("path with tilde vault prefix is resolved correctly", async () => {
+  const resolvedVaultPath = fileSystem.getVaultPath();
+  const home = homedir();
+
+  // Only run this test if the vault path is under the home directory
+  if (!resolvedVaultPath.startsWith(home)) {
+    return;
+  }
+
+  const content = "# Tilde Note\n\nTilde content.";
+  await writeFile(join(testVaultPath, "tilde-note.md"), content);
+
+  // Construct a ~/... path to the file
+  const relativeToHome = relative(home, resolvedVaultPath);
+  const tildePath = "~/" + relativeToHome + "/tilde-note.md";
+  const note = await fileSystem.readNote(tildePath);
+
+  expect(note.content).toContain("Tilde content.");
 });
 
 // ============================================================================
