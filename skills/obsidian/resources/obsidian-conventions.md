@@ -26,7 +26,7 @@ Obsidian uses `[[wikilinks]]`, not standard markdown links. When writing or patc
 | Syntax | Result |
 |--------|--------|
 | `[[Note Name]]` | Link to note |
-| `[[Note Name|Display Text]]` | Link with alias (pipe separates name from display text) |
+| `[[Note Name\|Display Text]]` | Link with alias (pipe separates name from display text) |
 | `[[Note Name#Heading]]` | Link to heading |
 | `[[Note Name#^block-id]]` | Link to block |
 | `![[Note Name]]` | Embed (transclude) entire note |
@@ -34,6 +34,18 @@ Obsidian uses `[[wikilinks]]`, not standard markdown links. When writing or patc
 | `![[Note Name#Heading]]` | Embed specific section |
 
 Standard `[markdown](links)` work but won't participate in Obsidian's graph view, backlinks, or rename refactoring.
+
+### Wikilinks inside Markdown tables
+
+When an aliased wikilink appears inside a Markdown table cell, escape the alias pipe as `\|`.
+Otherwise the Markdown table parser treats the alias separator as a column separator and shifts the remaining cells.
+
+Examples:
+
+- Normal prose: `[[Projects/Foo/Foo|Foo]]`
+- Table cell: `[[Projects/Foo/Foo\|Foo]]`
+
+Before writing or patching a table row, scan for `[[...|...]]` and convert it to `[[...\|...]]` inside that row.
 
 ## Daily Notes
 
