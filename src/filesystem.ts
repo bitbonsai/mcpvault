@@ -516,47 +516,58 @@ export class FileSystemService {
     const newFullPath = this.resolvePath(newPath);
 
     try {
-      // Read source content (will throw ENOENT if not found)
-      let content: string;
-      try {
-        content = await readFile(oldFullPath, 'utf-8');
-      } catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-          return {
-            success: false,
-            oldPath,
-            newPath,
-            message: `Source file not found: ${oldPath}. Use list_directory to see available files.`
-          };
-        }
-        throw error;
+      const sourceStat = await stat(oldFullPath);
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        return {
+          success: false,
+          oldPath,
+          newPath,
+          message: `Source file not found: ${oldPath}. Use list_directory to see available files.`
+        };
       }
+      throw error;
+    }
 
-      // Create directories if needed
-      await mkdir(dirname(newFullPath), { recursive: true });
-
-      // Write to new location, checking for existing file atomically if !overwrite
-      try {
-        if (overwrite) {
-          await writeFile(newFullPath, content, 'utf-8');
-        } else {
-          // wx flag: write exclusive - fails if file exists
-          await writeFile(newFullPath, content, { encoding: 'utf-8', flag: 'wx' });
-        }
-      } catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'EEXIST') {
+    try {
+      if (!overwrite) {
+        try {
+          await access(newFullPath, constants.F_OK);
           return {
             success: false,
             oldPath,
             newPath,
             message: `Target file already exists: ${newPath}. Use overwrite=true to replace it.`
           };
+        } catch (error) {
+          if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
+            throw error;
+          }
         }
-        throw error;
       }
 
-      // Delete the source file
-      await unlink(oldFullPath);
+      await mkdir(dirname(newFullPath), { recursive: true });
+
+      if (overwrite) {
+        try {
+          await unlink(newFullPath);
+        } catch (error) {
+          if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
+            throw error;
+          }
+        }
+      }
+
+      try {
+        await rename(oldFullPath, newFullPath);
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'EXDEV') {
+          await copyFile(oldFullPath, newFullPath);
+          await unlink(oldFullPath);
+        } else {
+          throw error;
+        }
+      }
 
       return {
         success: true,
