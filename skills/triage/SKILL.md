@@ -24,7 +24,7 @@ scripts are committed; the data never leaves the machine.
 
 - `gh` authenticated (`gh auth status`). All issue/PR/CI reads and writes go
   through it.
-- `.triage/` exists. If missing, run `scripts/triage/bootstrap.sh` first — it
+- `.triage/` exists. If missing, run `scripts/triage/bootstrap.sh` first, it
   scaffolds `state.json`, `inbox.md`, `runs/`, and bootstraps `voice.md` from
   past comments.
 - Clean working tree on `main`. The loop only mutates `.triage/` on the base
@@ -50,7 +50,7 @@ gh issue list --state open --json number,title,labels,updatedAt,author,url
 git log --since="$SINCE" --pretty='%h %s %an'
 ```
 
-Then scan for **open commitments** — promises the maintainer made in a comment
+Then scan for **open commitments**, promises the maintainer made in a comment
 that have not shipped. NOT time-windowed: check every open issue/PR.
 
 ```
@@ -95,10 +95,10 @@ git worktree add ../mcpvault-triage-<id> -b triage/<id>
 Then spawn TWO sub-agents against that worktree (use the Agent tool with
 `isolation: worktree` so they cannot collide):
 
-- **Draft agent** — given the finding + failing log/issue body, write the
+- **Draft agent**, given the finding + failing log/issue body, write the
   smallest fix. Must read relevant `src/` files first, follow the obsidian
   skill conventions, and add or update a test that proves the fix.
-- **Review agent** — adversarial. Check the draft against the project skills
+- **Review agent**, adversarial. Check the draft against the project skills
   and existing tests, then run in the worktree:
   ```
   npm ci && npm test && npm run build
@@ -126,11 +126,11 @@ Update `.triage/state.json`: set `last_run` to now, append an `attempts` entry
 per touched finding (run date, result, note, pr), update `status`,
 `last_seen`, and `pr`. Write the per-run log to `.triage/runs/<date>.md`.
 
-`state.json` is the resume point. Never overwrite history — append to
+`state.json` is the resume point. Never overwrite history, append to
 `attempts`. If the file is malformed, stop and spill everything to inbox
 rather than risk losing the spine.
 
-### 6. Comments — keep people out of limbo
+### 6. Comments, keep people out of limbo
 
 Voice comes from `.triage/voice.md`. Autonomy tiers (see
 `resources/comment-policy.md`):
@@ -157,12 +157,12 @@ the maintainer must read each morning.
 - Never touch files outside the worktree except `.triage/`.
 - Respect the per-run finding cap; spill the overflow rather than running long.
 - Outward-facing writes (PR create, comments) follow the autonomy tiers
-  above — substantive speech is always drafted, never auto-posted.
+  above, substantive speech is always drafted, never auto-posted.
 - If `gh` is unauthenticated or the tree is dirty, abort and write why to
   `inbox.md`.
 
 ## Resources
 
-- `resources/state-schema.md` — state.json shape, id derivation, transitions.
-- `resources/finding-rules.md` — worth-doing vs inbox vs ignore, caps.
-- `resources/comment-policy.md` — voice bootstrap + autonomy tiers.
+- `resources/state-schema.md`, state.json shape, id derivation, transitions.
+- `resources/finding-rules.md`, worth-doing vs inbox vs ignore, caps.
+- `resources/comment-policy.md`, voice bootstrap + autonomy tiers.

@@ -8,11 +8,11 @@ worth-doing, ignore over inbox).
 
 - **Per-run fix cap: 3.** At most 3 findings go through fan-out per run. Rank by
   priority (below); spill the rest to inbox as `open` so the next run picks them
-  up. Log what was deferred — never silently drop.
+  up. Log what was deferred, never silently drop.
 - **Attempt cap: 2.** A finding the loop has already failed to fix twice stops
   auto-retrying and stays in `needs_human`. The maintainer reopens it manually.
 - **Scope cap: 2 files.** If the draft touches more than 2 source files, it is
-  too big for the loop — send to inbox regardless of reviewer verdict.
+  too big for the loop, send to inbox regardless of reviewer verdict.
 
 ## Worth-doing (fan-out a fix)
 
@@ -29,7 +29,7 @@ A signal is worth-doing only if ALL hold:
 
 Priority order when over the per-run cap:
 
-1. CI failures on `main` (the repo is red — fix first).
+1. CI failures on `main` (the repo is red, fix first).
 2. CI failures on open PRs.
 3. Regressions from recent commits.
 4. Open issues with a clear, small, reproducible bug.
@@ -45,7 +45,7 @@ unkept promise.
 - Always lands in inbox under `## Open commitments (you promised, not shipped)`,
   with: the thread, the quoted promise, how long ago it was made, current state.
 - If the promised fix also meets the worth-doing bar (small, ≤2 files, testable)
-  and has no open PR, the loop MAY draft it too — then the nudge reads "drafted
+  and has no open PR, the loop MAY draft it too, then the nudge reads "drafted
   PR #X toward this" instead of just "still open". The nudge is posted to inbox
   regardless; it is never auto-posted as a public comment.
 - Do not re-nudge a promise already listed as `needs_human` from a prior run
@@ -79,7 +79,7 @@ Do not act, do not inbox, just note in the run log:
 - Flaky tests already tracked as a known finding.
 - Dependabot PRs (CI handles them; they are not triage findings).
 - Issues already labeled `wontfix` / `duplicate` / `question` with no bug.
-- Findings in terminal state (`resolved`, `wont_fix`, `pr_open`) — bump
+- Findings in terminal state (`resolved`, `wont_fix`, `pr_open`), bump
   `last_seen` only.
 - Bot/automation noise.
 
@@ -89,9 +89,9 @@ This is an MCP server for Obsidian vaults. Highest-value, lowest-risk findings:
 
 - A failing `*.test.ts` with a deterministic cause.
 - Frontmatter / YAML corruption edge cases (the project's core safety promise).
-- Path-filter or path-traversal test failures (security-relevant — fix fast,
+- Path-filter or path-traversal test failures (security-relevant, fix fast,
   but a *new* security behavior change is inbox, not auto-fix).
 - TypeScript build breaks after a dependency bump.
 
 Treat anything about the published npm package, the website, or the MCP
-protocol contract as inbox by default — those carry blast radius beyond a test.
+protocol contract as inbox by default, those carry blast radius beyond a test.

@@ -1,7 +1,7 @@
 # State schema
 
 `.triage/state.json` is the spine. It is the single source of truth for what
-the loop has seen, tried, and resolved. It is gitignored — it lives only on
+the loop has seen, tried, and resolved. It is gitignored, it lives only on
 the machine that runs the loop.
 
 ## Shape
@@ -41,13 +41,13 @@ run. Hash `source + ":" + signature`:
 id = sha1(source + ":" + signature) | first 12 chars
 ```
 
-The `signature` is what makes it stable across days — pick the most invariant
+The `signature` is what makes it stable across days, pick the most invariant
 identity for each source:
 
-- **ci** — the failing test name (or the failing step + assertion), NOT the
+- **ci**, the failing test name (or the failing step + assertion), NOT the
   run id or sha. `filesystem.test.ts > rejects path traversal`.
-- **issue** — `issue:<number>`. The number never changes.
-- **commit** — only tracked when a commit introduces a regression; signature is
+- **issue**, `issue:<number>`. The number never changes.
+- **commit**, only tracked when a commit introduces a regression; signature is
   the regression it caused, not the sha, so a later revert collapses to the
   same finding.
 
@@ -75,7 +75,7 @@ finding. That is how tomorrow resumes today.
   maintainer decision, any state ───► wont_fix  (terminal, never reopened)
 ```
 
-Terminal states (`resolved`, `wont_fix`, `pr_open`) are skipped on later runs —
+Terminal states (`resolved`, `wont_fix`, `pr_open`) are skipped on later runs;
 only `last_seen` is bumped. `open` and `needs_human` are eligible for retry
 until the attempt cap in `finding-rules.md`.
 
@@ -94,7 +94,7 @@ On gather, before triaging, reconcile:
 - Never delete a finding. History is the point.
 - Never rewrite an `attempts` entry. Append only.
 - `last_run` advances only after a successful persist. If the run aborts, the
-  next run re-reads the same window — safe because triage is idempotent on `id`.
+  next run re-reads the same window, safe because triage is idempotent on `id`.
 - If `state.json` fails to parse, do NOT recreate it. Stop, copy it to
   `state.json.corrupt-<date>`, and spill the whole run to inbox. Losing the
   spine is the one unrecoverable failure.

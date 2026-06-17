@@ -67,13 +67,13 @@ Or use Claude Code's `CronCreate` to schedule the same `run.sh`.
 GitHub Actions runners are ephemeral, so the spine (`.triage/state.json`) must
 persist between runs. To move the loop to Actions:
 
-1. Persist `.triage/` between runs — commit a redacted state to a dedicated
+1. Persist `.triage/` between runs, commit a redacted state to a dedicated
    branch, or store it as a workflow artifact / private gist.
 2. Add the `ANTHROPIC_API_KEY` and a `gh` token as repo secrets.
 3. Add a scheduled workflow that checks out, restores `.triage/`, runs
    `scripts/triage/run.sh`, and saves `.triage/` back.
 
-Until then the loop is local-only by design — it keeps your triage notes and
+Until then the loop is local-only by design, it keeps your triage notes and
 voice profile off the public repo.
 
 ## Safety

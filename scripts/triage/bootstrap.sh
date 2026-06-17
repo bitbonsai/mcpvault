@@ -45,7 +45,7 @@ if [[ ! -f "$TRIAGE_DIR/voice.md" ]]; then
   cat > "$TRIAGE_DIR/voice.md" <<'MD'
 # Maintainer voice
 
-> PLACEHOLDER — not yet distilled. The triage skill will populate this from
+> PLACEHOLDER, not yet distilled. The triage skill will populate this from
 > past gh comments on first run (see comment-policy.md). Until then, the loop
 > drafts all comments and auto-posts none.
 

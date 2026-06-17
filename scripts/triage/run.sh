@@ -21,7 +21,7 @@ gh auth status >/dev/null 2>&1 || fail "gh not authenticated (run: gh auth login
 
 if [[ -n "$(git status --porcelain)" ]]; then
   if [[ "${DRY_RUN:-0}" == "1" ]]; then
-    echo "triage: warning — working tree is dirty (ok for dry run; a real run aborts here)" >&2
+    echo "triage: warning, working tree is dirty (ok for dry run; a real run aborts here)" >&2
   else
     fail "working tree is dirty; triage needs a clean main checkout"
   fi

@@ -27,7 +27,7 @@ If there are too few past comments to distill a voice, write a minimal neutral
 profile and note in `voice.md` that it needs the maintainer's review. Do not
 invent a personality.
 
-Refresh `voice.md` opportunistically — when the maintainer posts new comments,
+Refresh `voice.md` opportunistically, when the maintainer posts new comments,
 later runs can re-distill.
 
 ## Autonomy tiers
@@ -38,7 +38,7 @@ Post directly with `gh issue comment <n> -b "..."` / `gh pr comment <n> -b "..."
 Allowed only for comments that state a fact about the loop's own actions and
 commit the maintainer to nothing:
 
-- "Draft PR #X is up for this — review when you can."
+- "Draft PR #X is up for this, review when you can."
 - "Looking into this CI failure."
 - "Tracking this; no repro yet."
 - "This is being picked up by the morning triage."
@@ -47,7 +47,7 @@ Rules for auto-posted comments:
 
 - State only what is true right now (a PR that exists, a state that is recorded).
 - No promises about timing, no commitments about whether/how it'll be fixed.
-- One ack per finding per run — do not re-comment the same ack across runs
+- One ack per finding per run, do not re-comment the same ack across runs
   (check `attempts` before posting).
 - In the maintainer's voice, but short.
 
@@ -65,10 +65,10 @@ gh issue view <n> --json createdAt,comments \
 
 If `mine == 0` and age > 14 days, prepend a line like:
 
-> Sorry for the slow reply — day-job has kept me busy.
+> Sorry for the slow reply, day-job has kept me busy.
 
 Adapt the exact wording to `.triage/voice.md` (it stays an apology + ack, never
-a promise). One apology per thread — once posted, the thread is no longer
+a promise). One apology per thread, once posted, the thread is no longer
 silent, so later runs skip the preamble. If `voice.md` is still the placeholder,
 this comment is drafted to inbox like everything else, not auto-posted.
 
