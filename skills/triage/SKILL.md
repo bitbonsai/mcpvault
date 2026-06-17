@@ -50,6 +50,21 @@ gh issue list --state open --json number,title,labels,updatedAt,author,url
 git log --since="$SINCE" --pretty='%h %s %an'
 ```
 
+Then scan for **open commitments** — promises the maintainer made in a comment
+that have not shipped. NOT time-windowed: check every open issue/PR.
+
+```
+# threads bitbonsai commented on, still open
+gh search issues "commenter:bitbonsai repo:bitbonsai/mcpvault state:open" --json number
+# per thread, pull bitbonsai's comments to inspect for a promise
+gh issue view <n> --json comments \
+  --jq '.comments[] | select(.author.login=="bitbonsai") | .body'
+```
+
+A commitment is language that promised an action: "I'll fix this", "will add",
+"shipping next release", "on it", "going to look", etc. It is broken/open if the
+thread is still open and no merged PR resolved it. See `finding-rules.md`.
+
 ### 2. Load state
 
 Read `.triage/state.json`. Build a map of known findings by `id`. The `id` is

@@ -34,6 +34,23 @@ Priority order when over the per-run cap:
 3. Regressions from recent commits.
 4. Open issues with a clear, small, reproducible bug.
 
+## Promised but undone (nudge → inbox)
+
+A commitment the maintainer made in a comment ("I'll fix this", "will add",
+"shipping next release", "on it") on a thread that is **still open with no merged
+PR resolving it**. The point is to nudge the maintainer about their own
+unkept promise.
+
+- id signature: `promise:<issue#>` (one nudge per thread, deduped across runs).
+- Always lands in inbox under `## Open commitments (you promised, not shipped)`,
+  with: the thread, the quoted promise, how long ago it was made, current state.
+- If the promised fix also meets the worth-doing bar (small, ≤2 files, testable)
+  and has no open PR, the loop MAY draft it too — then the nudge reads "drafted
+  PR #X toward this" instead of just "still open". The nudge is posted to inbox
+  regardless; it is never auto-posted as a public comment.
+- Do not re-nudge a promise already listed as `needs_human` from a prior run
+  unless its state changed (e.g. a PR opened or the maintainer commented again).
+
 ## Inbox (needs_human)
 
 Send to inbox, do not attempt a fix, when ANY holds:

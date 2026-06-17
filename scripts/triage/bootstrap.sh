@@ -26,6 +26,10 @@ if [[ ! -f "$TRIAGE_DIR/inbox.md" ]]; then
 
 Everything the morning loop could not handle on its own. Read this first.
 
+## Open commitments (you promised, not shipped)
+
+_Threads where you said you'd do something and it hasn't shipped. Each: thread, the quoted promise, how long ago, current state, whether a fix was drafted._
+
 ## Needs decision
 
 _Findings parked for a human call. Each: finding id, source, what was tried, why it's here, smallest next action._
