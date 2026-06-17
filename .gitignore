@@ -120,6 +120,9 @@ Thumbs.db
 # Claude Code settings
 .claude/settings.local.json
 
+# Triage automation data (personal, never published to the public repo)
+.triage/
+
 # Bun
 bun.lockb
 
