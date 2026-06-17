@@ -46,6 +46,10 @@ export class PathFilter {
   }
 
   isAllowed(path: string): boolean {
+    if (typeof path !== "string") {
+      throw new Error("path is required and must be a string");
+    }
+
     // Normalize path separators
     const normalizedPath = path.replace(/\\/g, '/');
 
@@ -67,6 +71,10 @@ export class PathFilter {
   }
 
   isAllowedForListing(path: string): boolean {
+    if (typeof path !== "string") {
+      throw new Error("path is required and must be a string");
+    }
+
     // Normalize path separators
     const normalizedPath = path.replace(/\\/g, '/');
 

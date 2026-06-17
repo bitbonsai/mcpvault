@@ -305,4 +305,30 @@ describe("PathFilter", () => {
       expect(filter.isAllowed("1. Project/file.js")).toBe(false);
     });
   });
+
+  describe("invalid path input (issue #107)", () => {
+    test("isAllowed throws a clear error when path is undefined", () => {
+      const filter = new PathFilter();
+      // @ts-expect-error testing runtime guard against undefined
+      expect(() => filter.isAllowed(undefined)).toThrow(
+        "path is required and must be a string"
+      );
+    });
+
+    test("isAllowed throws a clear error when path is null", () => {
+      const filter = new PathFilter();
+      // @ts-expect-error testing runtime guard against null
+      expect(() => filter.isAllowed(null)).toThrow(
+        "path is required and must be a string"
+      );
+    });
+
+    test("isAllowedForListing throws a clear error when path is undefined", () => {
+      const filter = new PathFilter();
+      // @ts-expect-error testing runtime guard against undefined
+      expect(() => filter.isAllowedForListing(undefined)).toThrow(
+        "path is required and must be a string"
+      );
+    });
+  });
 });

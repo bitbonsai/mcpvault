@@ -37,6 +37,9 @@ export class PathFilter {
         return regex.test(path);
     }
     isAllowed(path) {
+        if (typeof path !== "string") {
+            throw new Error("path is required and must be a string");
+        }
         // Normalize path separators
         const normalizedPath = path.replace(/\\/g, '/');
         if (this.isIgnoredPath(normalizedPath)) {
@@ -52,6 +55,9 @@ export class PathFilter {
         return true;
     }
     isAllowedForListing(path) {
+        if (typeof path !== "string") {
+            throw new Error("path is required and must be a string");
+        }
         // Normalize path separators
         const normalizedPath = path.replace(/\\/g, '/');
         // Listing includes non-note files, but still blocks restricted system paths
