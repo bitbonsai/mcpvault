@@ -34,22 +34,23 @@ the machine that runs the loop.
 
 ## id derivation
 
-`id` is a short stable hash so the same problem maps to the same finding every
-run. Hash `source + ":" + signature`:
+`id` is a readable, stable composite so the same problem maps to the same
+finding every run and the state file stays human-debuggable:
 
 ```
-id = sha1(source + ":" + signature) | first 12 chars
+id = "<source>:<signature>"   (lowercased, spaces -> '-')
 ```
 
 The `signature` is what makes it stable across days, pick the most invariant
 identity for each source:
 
-- **ci**, the failing test name (or the failing step + assertion), NOT the
-  run id or sha. `filesystem.test.ts > rejects path traversal`.
-- **issue**, `issue:<number>`. The number never changes.
+- **issue** / **pr**, the number: `issue:107`, `pr:132`. Never changes.
+- **ci**, the failing test name (NOT the run id or sha):
+  `ci:filesystem.test.ts-rejects-path-traversal`.
 - **commit**, only tracked when a commit introduces a regression; signature is
   the regression it caused, not the sha, so a later revert collapses to the
   same finding.
+- **promise**, the thread the unkept commitment lives on: `promise:49`.
 
 Same signature → same id → dedupe works. Different run, same broken test, same
 finding. That is how tomorrow resumes today.

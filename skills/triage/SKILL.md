@@ -83,10 +83,16 @@ For each gathered signal compute its `id` and classify with
 - **new + needs judgment / ambiguous / out of scope** → inbox, `needs_human`.
 - **noise** (flaky already tracked, dependabot, etc.) → ignore, log only.
 
-### 4. Fan-out fix (bounded)
+### 4. Fan-out (bounded)
 
-Process worth-doing findings up to the per-run cap in `finding-rules.md`. For
-each, in order:
+First, for every finding, check whether a contributor PR already addresses it
+(`finding-rules.md`, "Prefer reviewing an existing PR"). If one exists, **review
+it instead of writing a fix**: send the review sub-agent at the PR branch and
+draft an approval or request-changes recommendation to inbox. A human's open PR
+beats a fresh one. Also surface any open PR the maintainer has not yet reviewed.
+
+Only findings with no candidate PR proceed to a new fix, up to the per-run cap
+in `finding-rules.md`. For each, in order:
 
 ```
 git worktree add ../mcpvault-triage-<id> -b triage/<id>

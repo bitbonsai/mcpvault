@@ -14,6 +14,34 @@ worth-doing, ignore over inbox).
 - **Scope cap: 2 files.** If the draft touches more than 2 source files, it is
   too big for the loop, send to inbox regardless of reviewer verdict.
 
+## Prefer reviewing an existing PR over writing a new fix
+
+Before treating anything as worth-doing, check whether a contributor PR already
+addresses it. **A human's open PR almost always beats a freshly written one.**
+
+For each finding, search for a candidate PR:
+
+```
+gh pr list --state open --search "<issue#> in:body"      # explicit link
+gh pr list --state open --json number,title,headRefName  # scan titles for the topic
+```
+
+If a candidate PR exists:
+
+- **Review it**, do not rewrite it. Send the review sub-agent at the PR branch:
+  check it against the project skills and tests, run `npm test && npm run build`.
+- PASS, draft an **approval** recommendation to inbox (approving is a maintainer
+  decision, so it is substantive, inbox, never auto-approved).
+- Needs work, draft a **request-changes** recommendation to inbox, specific and
+  in the maintainer's voice.
+- Either way, optionally auto-post a short ack ("reviewing your PR, thanks for
+  this") so the contributor is not left waiting.
+- Only fall through to writing a new fix if there is **no** candidate PR, or the
+  existing PR is abandoned (stale, author unresponsive, explicitly superseded).
+
+Open PRs with no movement are themselves findings: an unreviewed contributor PR
+is limbo. Surface every open PR the maintainer has not reviewed.
+
 ## Worth-doing (fan-out a fix)
 
 A signal is worth-doing only if ALL hold:
@@ -72,10 +100,9 @@ the reason it landed here, and the smallest next action.
 
 Do not act, do not inbox, just note in the run log:
 
-- **Issue that already has an open PR referencing it** → ignore, bump
-  `last_seen`. Never draft a competing fix. Check with
-  `gh pr list --state open --search "<issue#> in:body"` (and scan PR titles that
-  name the issue) before treating any issue as worth-doing.
+- **Issue that already has an open PR** is NOT ignored, it is routed to "Prefer
+  reviewing an existing PR" above: review the contributor's PR, never draft a
+  competing fix.
 - Flaky tests already tracked as a known finding.
 - Dependabot PRs (CI handles them; they are not triage findings).
 - Issues already labeled `wontfix` / `duplicate` / `question` with no bug.
