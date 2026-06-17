@@ -157,9 +157,36 @@ Anything the loop could not classify, fix, or safely comment on goes to
 `inbox.md` with enough context to act on cold. The inbox is the only thing
 the maintainer must read each morning.
 
+### 8. Version bump and publish alert
+
+When a fix PR changes the **published package** (anything under `src/`, or
+`package.json` dependencies that ship), bump the version per semver in the same
+PR:
+
+- patch (`x.y.Z`) for a bug fix, default for triage fixes.
+- minor (`x.Y.0`) only if the fix adds behavior; the loop should not be doing
+  these, so if a bump looks bigger than patch, send it to inbox instead.
+
+Do NOT bump for changes that do not ship: lockfile-only updates (e.g. a bare
+`npm audit fix`), docs, CI config, tests-only, or anything under `.triage/`.
+When unsure whether a change ships, do not bump; note it in the inbox.
+
+**Publishing is always manual.** The loop NEVER runs `npm publish`. After a PR
+that includes a version bump, write a top-of-inbox alert:
+
+```
+## PUBLISH NEEDED
+- PR #<n> bumps <old> -> <new> (<reason>). After it merges, run `npm publish`
+  manually. Loop does not publish.
+```
+
+Keep the alert until the maintainer confirms it shipped.
+
 ## Guardrails
 
 - Never push to `main`, never merge, never `--force`. PRs only.
+- Never run `npm publish`. Version bumps ride inside the fix PR; publishing is
+  the maintainer's manual step, flagged via the inbox PUBLISH NEEDED alert.
 - Never touch files outside the worktree except `.triage/`.
 - Respect the per-run finding cap; spill the overflow rather than running long.
 - Outward-facing writes (PR create, comments) follow the autonomy tiers
