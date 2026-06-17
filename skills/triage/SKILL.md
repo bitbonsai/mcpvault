@@ -188,6 +188,9 @@ Keep the alert until the maintainer confirms it shipped.
 - Never run `npm publish`. Version bumps ride inside the fix PR; publishing is
   the maintainer's manual step, flagged via the inbox PUBLISH NEEDED alert.
 - Never touch files outside the worktree except `.triage/`.
+- The token usually lacks the GitHub `workflow` scope, so pushes that change
+  `.github/workflows/*` are rejected. Do NOT attempt them; route any CI/workflow
+  change to the inbox for the maintainer to apply (or to re-scope the token).
 - Respect the per-run finding cap; spill the overflow rather than running long.
 - Outward-facing writes (PR create, comments) follow the autonomy tiers
   above, substantive speech is always drafted, never auto-posted.
