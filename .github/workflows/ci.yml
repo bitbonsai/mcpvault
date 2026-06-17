@@ -57,5 +57,5 @@ jobs:
 
       # https://docs.npmjs.com/cli/v10/commands/npm-audit
       - name: Run npm audit
-        run: npm audit --audit-level=moderate
+        run: npm audit --audit-level=high
 
