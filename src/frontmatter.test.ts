@@ -150,6 +150,30 @@ people:
   expect(result).toContain('"[[Bob]]"');
 });
 
+test("update frontmatter does not re-quote unmodified plain dates or change quote style (#116)", () => {
+  const content = `---
+created: 2026-04-23
+tags:
+  - type/meeting
+project: abc
+attendees:
+  - "[[John-Brown]]"
+summary: Some summary text
+---
+Body text here.`;
+
+  const result = handler.updateFrontmatter(content, { status: "active" });
+
+  // Plain date stays plain, not single-quoted
+  expect(result).toContain("created: 2026-04-23");
+  expect(result).not.toContain("created: '2026-04-23'");
+  // Double-quoted wikilink keeps double quotes, not converted to single
+  expect(result).toContain('"[[John-Brown]]"');
+  expect(result).not.toContain("'[[John-Brown]]'");
+  // The new field is added
+  expect(result).toContain("status: active");
+});
+
 describe("parseFrontmatter", () => {
   test("returns undefined for null and undefined", () => {
     expect(parseFrontmatter(null)).toBeUndefined();
