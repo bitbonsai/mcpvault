@@ -7,6 +7,34 @@ import { PathFilter } from './pathfilter.js';
 import { generateObsidianUri } from './uri.js';
 import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats } from './types.js';
 
+/**
+ * Map a filesystem write failure to a clear, accurate Error.
+ *
+ * Classifies by the Node error `code`, NOT by message substring. The old
+ * substring matching (`message.includes('space')`) mislabeled any error whose
+ * message merely contained "space" as a disk-full error, producing false
+ * "No space left on device" reports (#109). Errors we threw ourselves with a
+ * meaningful message (no `code`) pass through unchanged.
+ */
+export function classifyWriteError(error: unknown, path: string): Error {
+  const code = error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined;
+  switch (code) {
+    case 'ENOSPC':
+      return new Error(`No space left on device: ${path}`);
+    case 'EACCES':
+    case 'EPERM':
+      return new Error(`Permission denied: ${path}`);
+    case 'EROFS':
+      return new Error(`Read-only filesystem: ${path}`);
+  }
+  // No filesystem code: an error we raised with a clear message (path
+  // traversal, validation, etc.). Preserve it as-is.
+  if (error instanceof Error && !code) {
+    return error;
+  }
+  return new Error(`Failed to write file: ${path} - ${error instanceof Error ? error.message : 'Unknown error'}`);
+}
+
 export class FileSystemService {
   private frontmatterHandler: FrontmatterHandler;
   private pathFilter: PathFilter;
@@ -191,15 +219,7 @@ export class FileSystemService {
       await mkdir(dirname(fullPath), { recursive: true });
       await writeFile(fullPath, finalContent!, 'utf-8');
     } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('permission') || error.message.includes('access')) {
-          throw new Error(`Permission denied: ${path}`);
-        }
-        if (error.message.includes('space') || error.message.includes('ENOSPC')) {
-          throw new Error(`No space left on device: ${path}`);
-        }
-      }
-      throw new Error(`Failed to write file: ${path} - ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw classifyWriteError(error, path);
     }
   }
 

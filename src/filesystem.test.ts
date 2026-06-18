@@ -1,5 +1,5 @@
-import { test, expect, beforeEach, afterEach } from "vitest";
-import { FileSystemService } from "./filesystem.js";
+import { test, expect, beforeEach, afterEach, describe } from "vitest";
+import { FileSystemService, classifyWriteError } from "./filesystem.js";
 import { PathFilter } from "./pathfilter.js";
 import { writeFile, readFile, mkdir, mkdtemp, rm, symlink } from "fs/promises";
 import { join } from "path";
@@ -1412,4 +1412,46 @@ test("listAllTags skips system directories", async () => {
 
   expect(tags).toHaveLength(1);
   expect(tags[0]?.tag).toBe("visible");
+});
+
+describe("classifyWriteError (#109)", () => {
+  const mk = (code?: string, message = "boom") => {
+    const e = new Error(message) as NodeJS.ErrnoException;
+    if (code) e.code = code;
+    return e;
+  };
+
+  test("real ENOSPC maps to 'No space left on device'", () => {
+    expect(classifyWriteError(mk("ENOSPC"), "n.md").message).toBe(
+      "No space left on device: n.md"
+    );
+  });
+
+  test("EACCES and EPERM map to 'Permission denied'", () => {
+    expect(classifyWriteError(mk("EACCES"), "n.md").message).toBe("Permission denied: n.md");
+    expect(classifyWriteError(mk("EPERM"), "n.md").message).toBe("Permission denied: n.md");
+  });
+
+  test("EROFS maps to 'Read-only filesystem'", () => {
+    expect(classifyWriteError(mk("EROFS"), "n.md").message).toBe("Read-only filesystem: n.md");
+  });
+
+  test("error whose message merely contains 'space' is NOT mislabeled as ENOSPC (#109)", () => {
+    const err = mk(undefined, "invalid whitespace in namespace");
+    const out = classifyWriteError(err, "n.md");
+    // No fs code + a real Error => preserved as-is, never rewritten to ENOSPC
+    expect(out).toBe(err);
+    expect(out.message).not.toContain("No space left on device");
+  });
+
+  test("unknown fs code falls back to a 'Failed to write file' wrapper preserving the message", () => {
+    const out = classifyWriteError(mk("EBUSY", "resource busy"), "n.md");
+    expect(out.message).toBe("Failed to write file: n.md - resource busy");
+  });
+
+  test("non-Error value yields a generic failure", () => {
+    expect(classifyWriteError("nope", "n.md").message).toBe(
+      "Failed to write file: n.md - Unknown error"
+    );
+  });
 });

@@ -1,6 +1,16 @@
 import { FrontmatterHandler } from './frontmatter.js';
 import { PathFilter } from './pathfilter.js';
 import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats } from './types.js';
+/**
+ * Map a filesystem write failure to a clear, accurate Error.
+ *
+ * Classifies by the Node error `code`, NOT by message substring. The old
+ * substring matching (`message.includes('space')`) mislabeled any error whose
+ * message merely contained "space" as a disk-full error, producing false
+ * "No space left on device" reports (#109). Errors we threw ourselves with a
+ * meaningful message (no `code`) pass through unchanged.
+ */
+export declare function classifyWriteError(error: unknown, path: string): Error;
 export declare class FileSystemService {
     private vaultPath;
     private frontmatterHandler;
