@@ -26,10 +26,28 @@ gh pr list --state open --search "<issue#> in:body"      # explicit link
 gh pr list --state open --json number,title,headRefName  # scan titles for the topic
 ```
 
+### Fit-to-ethos gate (before any merge or approval)
+
+A PR being green and mergeable is NOT enough. Before recommending a merge, judge
+whether the project actually WANTS the change, against `README.md` and
+`AGENTS.md` (scope, promises, values). For mcpvault the ethos is: universal MCP
+bridge for Obsidian vaults, **safe** read/write, **preserve YAML frontmatter**,
+**enforce security boundaries** (never expose `.git`/`.obsidian`/system dirs),
+simplicity.
+
+- A change that fits the promise and values → eligible to merge.
+- A clean, working PR that expands scope, adds a feature the project does not
+  want, weakens a safety/security guarantee, or adds complexity against the
+  "simple" value → do NOT merge; draft a decline-or-redirect comment to inbox
+  explaining the ethos mismatch, even though it is technically mergeable.
+- State the fit verdict explicitly in the inbox review entry ("fits ethos: X" /
+  "scope creep vs README: Y").
+
 If a candidate PR exists:
 
 - **Review it**, do not rewrite it. Send the review sub-agent at the PR branch:
   check it against the project skills and tests, run `npm test && npm run build`.
+- Apply the fit-to-ethos gate above before any approve/merge recommendation.
 - PASS, draft an **approval** recommendation to inbox (approving is a maintainer
   decision, so it is substantive, inbox, never auto-approved).
 - Needs work, draft a **request-changes** recommendation to inbox, specific and
