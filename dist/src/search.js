@@ -1,6 +1,16 @@
 import { join, resolve } from 'path';
 import { readFile, readdir } from 'node:fs/promises';
 import { generateObsidianUri } from './uri.js';
+/** Normalize a subtree path: forward slashes, no leading/trailing slashes. */
+function normalizeSubtree(p) {
+    return p.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
+}
+/** True if a vault-relative path is the subtree itself or sits under it. */
+function isUnderSubtree(relativePath, subtree) {
+    if (!subtree)
+        return false;
+    return relativePath === subtree || relativePath.startsWith(subtree + '/');
+}
 export class SearchService {
     pathFilter;
     vaultPath;
@@ -9,10 +19,12 @@ export class SearchService {
         this.vaultPath = resolve(vaultPath);
     }
     async search(params) {
-        const { query, limit = 5, searchContent = true, searchFrontmatter = false, caseSensitive = false } = params;
+        const { query, limit = 5, searchContent = true, searchFrontmatter = false, caseSensitive = false, pathPrefix, excludePaths } = params;
         if (!query || query.trim().length === 0) {
             throw new Error('Search query cannot be empty');
         }
+        const normalizedPrefix = pathPrefix ? normalizeSubtree(pathPrefix) : '';
+        const normalizedExcludes = (excludePaths || []).map(normalizeSubtree).filter(Boolean);
         const maxLimit = Math.min(limit, 20);
         // Corpus stats for reranking
         let totalDocLength = 0;
@@ -29,9 +41,14 @@ export class SearchService {
         const allowedFiles = [];
         for (const fullPath of markdownFiles) {
             const relativePath = fullPath.substring(prefixLen).replace(/\\/g, '/');
-            if (this.pathFilter.isAllowed(relativePath)) {
-                allowedFiles.push({ fullPath, relativePath });
-            }
+            if (!this.pathFilter.isAllowed(relativePath))
+                continue;
+            // Scope to the requested subtree, and skip excluded subtrees, before I/O
+            if (normalizedPrefix && !isUnderSubtree(relativePath, normalizedPrefix))
+                continue;
+            if (normalizedExcludes.some(ex => isUnderSubtree(relativePath, ex)))
+                continue;
+            allowedFiles.push({ fullPath, relativePath });
         }
         // Read files in parallel batches
         const BATCH_SIZE = 5;

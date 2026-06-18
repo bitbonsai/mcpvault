@@ -91,6 +91,8 @@ export function createServer(vaultPath, options = {}) {
                             searchContent: { type: "boolean", description: "Search in note content (default: true)", default: true },
                             searchFrontmatter: { type: "boolean", description: "Search in frontmatter (default: false)", default: false },
                             caseSensitive: { type: "boolean", description: "Case sensitive search (default: false)", default: false },
+                            pathPrefix: { type: "string", description: "Restrict the search to a vault subtree, e.g. \"Projects/2026\" (directory prefix)" },
+                            excludePaths: { type: "array", items: { type: "string" }, description: "Skip files under these subtrees, e.g. [\"Archive\", \"meta\"] (directory prefixes)" },
                             prettyPrint: { type: "boolean", description: "Format JSON response with indentation (default: false)", default: false }
                         },
                         required: ["query"]
@@ -272,7 +274,9 @@ export function createServer(vaultPath, options = {}) {
                         limit: trimmedArgs.limit,
                         searchContent: trimmedArgs.searchContent,
                         searchFrontmatter: trimmedArgs.searchFrontmatter,
-                        caseSensitive: trimmedArgs.caseSensitive
+                        caseSensitive: trimmedArgs.caseSensitive,
+                        pathPrefix: trimmedArgs.pathPrefix,
+                        excludePaths: trimmedArgs.excludePaths
                     });
                     const indent = trimmedArgs.prettyPrint ? 2 : undefined;
                     return {

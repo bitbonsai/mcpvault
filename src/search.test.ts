@@ -278,4 +278,49 @@ describe("SearchService", () => {
     expect(results).toHaveLength(1);
     expect(results[0]!.p).toBe("sessions/foo-bar.md");
   });
+
+  describe("path filtering (#126)", () => {
+    beforeEach(async () => {
+      await writeNote("Projects/a.md", "alpha banana");
+      await writeNote("Projects/sub/b.md", "beta banana");
+      await writeNote("Archive/old.md", "gamma banana");
+      await writeNote("meta/notes.md", "delta banana");
+      await writeNote("root.md", "epsilon banana");
+    });
+
+    test("pathPrefix restricts results to a subtree", async () => {
+      const results = await searchService.search({ query: "banana", limit: 20, pathPrefix: "Projects" });
+      const paths = results.map(r => r.p).sort();
+      expect(paths).toEqual(["Projects/a.md", "Projects/sub/b.md"]);
+    });
+
+    test("pathPrefix is tolerant of leading/trailing slashes", async () => {
+      const results = await searchService.search({ query: "banana", limit: 20, pathPrefix: "/Projects/" });
+      expect(results.map(r => r.p).sort()).toEqual(["Projects/a.md", "Projects/sub/b.md"]);
+    });
+
+    test("excludePaths skips matching subtrees", async () => {
+      const results = await searchService.search({ query: "banana", limit: 20, excludePaths: ["Archive", "meta"] });
+      const paths = results.map(r => r.p);
+      expect(paths).not.toContain("Archive/old.md");
+      expect(paths).not.toContain("meta/notes.md");
+      expect(paths).toContain("Projects/a.md");
+      expect(paths).toContain("root.md");
+    });
+
+    test("pathPrefix and excludePaths combine", async () => {
+      await writeNote("Projects/Archive/stale.md", "zeta banana");
+      const results = await searchService.search({
+        query: "banana", limit: 20, pathPrefix: "Projects", excludePaths: ["Projects/Archive"]
+      });
+      const paths = results.map(r => r.p).sort();
+      expect(paths).toEqual(["Projects/a.md", "Projects/sub/b.md"]);
+    });
+
+    test("a prefix that is a name-substring of a sibling does not over-match", async () => {
+      await writeNote("Project-notes/x.md", "eta banana");
+      const results = await searchService.search({ query: "banana", limit: 20, pathPrefix: "Projects" });
+      expect(results.map(r => r.p)).not.toContain("Project-notes/x.md");
+    });
+  });
 });

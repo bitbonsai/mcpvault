@@ -61,6 +61,10 @@ export interface SearchParams {
   searchContent?: boolean;
   searchFrontmatter?: boolean;
   caseSensitive?: boolean;
+  /** Restrict the search to a vault subtree (directory prefix, e.g. "Projects/2026"). */
+  pathPrefix?: string;
+  /** Skip files under any of these subtrees (directory prefixes). */
+  excludePaths?: string[];
 }
 
 export interface SearchResult {
