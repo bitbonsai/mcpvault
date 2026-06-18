@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-06-18
+
+### Added
+- `search_notes` now accepts optional `pathPrefix` (restrict the search to a vault subtree) and `excludePaths` (skip given subtrees). Filtering runs before file I/O, so excluded files are not read or scored and the result limit is no longer diluted by unwanted directories ([#126](https://github.com/bitbonsai/mcpvault/issues/126))
+
 ## [0.11.5] - 2026-06-18
 
 ### Security
