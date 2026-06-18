@@ -27,7 +27,7 @@ A universal AI bridge for Obsidian vaults using the Model Context Protocol (MCP)
 
 ## Universal Compatibility
 
-Works with any MCP-compatible AI assistant including Claude Desktop, Claude Code, ChatGPT Desktop (Enterprise+), OpenCode, Gemini CLI, OpenAI Codex, IntelliJ IDEA 2025.1+, Cursor IDE, Windsurf IDE, and future AI platforms that adopt the MCP standard.
+Works with any MCP-compatible AI assistant including Claude Desktop, Claude Code, ChatGPT Desktop (Enterprise+), OpenCode, Gemini CLI, OpenAI Codex, IntelliJ IDEA 2025.1+, Cursor IDE, Windsurf IDE, Ontheia, and future AI platforms that adopt the MCP standard.
 
 https://github.com/user-attachments/assets/657ac4c6-1cd2-4cc3-829f-fd095a32f71c
 
@@ -334,6 +334,7 @@ npx @bitbonsai/mcpvault@latest /path/to/your/vault
 - **IntelliJ IDEA 2025.1+** - Native MCP client support
 - **Cursor IDE** - Built-in MCP compatibility
 - **Windsurf IDE** - Full MCP integration
+- **[Ontheia](https://ontheia.ai)** - Self-hosted, open-source AI agent platform
 - **Zed, Replit, Codeium, Sourcegraph** - In development
 - **Microsoft Copilot Studio** - Native MCP support with one-click server connections
 
