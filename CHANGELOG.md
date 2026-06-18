@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.5] - 2026-06-18
+
+### Security
+- Deny restricted directories (`.git`, `.obsidian`, `node_modules`) at any depth, not just the vault root. Nested copies were traversable, exposing nested `.git/config` / `.obsidian` contents and polluting the tag index with nested `node_modules` ([#128](https://github.com/bitbonsai/mcpvault/issues/128), [GHSA-9c83-rr99-vfwj](https://github.com/bitbonsai/mcpvault/security/advisories/GHSA-9c83-rr99-vfwj))
+
+### Fixed
+- `write_note` / `update_frontmatter` no longer misreport unrelated errors as "No space left on device": write errors are now classified by Node error code, not message substring ([#109](https://github.com/bitbonsai/mcpvault/issues/109))
+
+### Changed
+- Dependency updates: `yaml` 2.9.0, `typescript` 6.0.3, dev tooling ([#135](https://github.com/bitbonsai/mcpvault/pull/135))
+
+## [0.11.4] - 2026-06-17
+
+### Security
+- Match the restricted-directory deny-list case-insensitively and canonicalize trailing dots/spaces per path segment. On case-insensitive filesystems (macOS, Windows), variants like `.Git/config`, `.GIT/config`, or `.git./config` bypassed the `.git`/`.obsidian` restriction ([GHSA-j99q-93c9-h869](https://github.com/bitbonsai/mcpvault/security/advisories/GHSA-j99q-93c9-h869))
+
+### Changed
+- `npm audit fix`: resolved transitive advisories; CI audit gate set to `high`
+
+## [0.11.3] - 2026-06-17
+
+### Fixed
+- `read_note` / `write_note` (and `patch_note` / `delete_note` / `move_file`) no longer throw an unguarded `TypeError` when `path` is missing; they return a clear "path is required" error ([#107](https://github.com/bitbonsai/mcpvault/issues/107))
+
+### Note
+- First npm release since 0.11.0; also delivers the 0.11.1 and 0.11.2 changes below (AST-aware frontmatter preservation, `delete_note` `trashMode`), which were not separately published.
+
 ## [0.11.2] - 2026-04-16
 
 ### Added
