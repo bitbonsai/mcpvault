@@ -18,7 +18,8 @@ This is a test note with frontmatter.`;
 
   expect(result.frontmatter.title).toBe("Test Note");
   expect(result.frontmatter.tags).toEqual(["test", "example"]);
-  expect(result.frontmatter.created).toEqual(new Date("2023-01-01"));
+  // YAML 1.2 (yaml package) keeps dates as strings; js-yaml@3 parsed them as Date objects.
+  expect(result.frontmatter.created).toBe("2023-01-01");
   expect(result.content.trim()).toBe("# Test Note\n\nThis is a test note with frontmatter.");
 });
 

@@ -1,6 +1,22 @@
 import matter from 'gray-matter';
-import { parseDocument } from 'yaml';
+import { parse, stringify, parseDocument } from 'yaml';
 import type { ParsedNote, FrontmatterValidationResult } from './types.js';
+
+// Use the 'yaml' package as gray-matter's engine instead of js-yaml.
+// js-yaml@3.x (pinned by gray-matter@4) has known quadratic-DoS via
+// crafted YAML merge-key aliases (CVE-2023-44270). The 'yaml' package
+// is already a dependency (used in preserveStringify) and is not affected.
+const yamlEngine = {
+  // YAML 1.2 schema (default). Dates stay as strings, but this avoids the
+  // yaml-1.1 bug where single-letter keys like 'y'/'n' become booleans.
+  // Merge keys (<<) are not resolved, which is fine for Obsidian frontmatter.
+  parse: (str: string) => parse(str),
+  stringify: (data: any) => stringify(data),
+};
+
+function withYamlEngine(options: Record<string, any> = {}): Record<string, any> {
+  return { ...options, engines: { yaml: yamlEngine } };
+}
 
 /**
  * Parse a frontmatter value that may be a JSON string (LLM clients sometimes
@@ -31,7 +47,7 @@ export function parseFrontmatter(value: any): Record<string, any> | undefined {
 export class FrontmatterHandler {
   parse(content: string): ParsedNote {
     try {
-      const parsed = matter(content);
+      const parsed = matter(content, withYamlEngine());
       return {
         frontmatter: parsed.data,
         content: parsed.content,
@@ -56,7 +72,7 @@ export class FrontmatterHandler {
         return content;
       }
 
-      return matter.stringify(content, frontmatterData);
+      return matter.stringify(content, frontmatterData, withYamlEngine());
     } catch (error) {
       throw new Error(`Failed to stringify frontmatter: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -71,7 +87,7 @@ export class FrontmatterHandler {
 
     try {
       // Test if the frontmatter can be serialized to valid YAML using gray-matter
-      matter.stringify('', frontmatterData);
+      matter.stringify('', frontmatterData, withYamlEngine());
     } catch (error) {
       result.isValid = false;
       result.errors.push(`Invalid YAML structure: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -141,7 +157,7 @@ export class FrontmatterHandler {
         if (!updates || Object.keys(updates).length === 0) {
           return content;
         }
-        return matter.stringify(content, updates);
+        return matter.stringify(content, updates, withYamlEngine());
       }
 
       const doc = parseDocument(rawMatter.trimStart());
