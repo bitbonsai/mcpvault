@@ -16,7 +16,8 @@
     }
   },
   "bin": {
-    "mcpvault": "dist/server.js"
+    "mcpvault": "dist/server.js",
+    "mcpvault-http": "dist/server-http.js"
   },
   "files": [
     "dist/**/*",
@@ -25,6 +26,7 @@
   ],
   "scripts": {
     "start": "tsx server.ts",
+    "start:http": "tsx server-http.ts",
     "website": "cd website && bun dev",
     "build": "tsc --project tsconfig.build.json",
     "test": "vitest run",

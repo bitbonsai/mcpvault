@@ -8,6 +8,7 @@
   },
   "include": [
     "server.ts",
+    "server-http.ts",
     "src/**/*"
   ],
   "exclude": [
