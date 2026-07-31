@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { parseAllowedExtensions, stripKnownFlags } from "./cli.js";
+import { parseAllowedExtensions, parseAppendOnly, stripKnownFlags } from "./cli.js";
 
 describe("parseAllowedExtensions", () => {
   test("returns undefined when the flag is absent", () => {
@@ -24,10 +24,27 @@ describe("parseAllowedExtensions", () => {
   });
 });
 
+describe("parseAppendOnly", () => {
+  test("returns undefined when the flag is absent", () => {
+    expect(parseAppendOnly(["/vault"])).toBeUndefined();
+  });
+
+  test("splits, trims, and drops empty entries", () => {
+    expect(parseAppendOnly(["--append-only=log.md, journal.md ,,"])).toEqual([
+      "log.md",
+      "journal.md",
+    ]);
+  });
+});
+
 describe("stripKnownFlags", () => {
-  test("removes the flag and keeps the positional vault path", () => {
-    expect(stripKnownFlags(["/my vault", "--allowed-extensions=.html"])).toEqual(
-      ["/my vault"]
-    );
+  test("removes known flags and keeps the positional vault path", () => {
+    expect(
+      stripKnownFlags([
+        "/my vault",
+        "--allowed-extensions=.html",
+        "--append-only=log.md",
+      ])
+    ).toEqual(["/my vault"]);
   });
 });

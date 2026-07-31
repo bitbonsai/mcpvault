@@ -3,7 +3,7 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer } from "./src/createServer.js";
 import { PathFilter } from "./src/pathfilter.js";
-import { parseAllowedExtensions, stripKnownFlags } from "./src/cli.js";
+import { parseAllowedExtensions, parseAppendOnly, stripKnownFlags } from "./src/cli.js";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join, resolve } from "path";
@@ -32,7 +32,7 @@ mcpvault v${VERSION}
 Universal AI bridge for Obsidian vaults - connect any MCP-compatible assistant
 
 Usage:
-  npx @bitbonsai/mcpvault [vault-path] [--allowed-extensions=ext1,ext2,...]
+  npx @bitbonsai/mcpvault [vault-path] [--allowed-extensions=ext,...] [--append-only=name,...]
 
 Arguments:
   [vault-path]    Optional path to your Obsidian vault directory
@@ -45,6 +45,9 @@ Options:
                             read/write (e.g. ".html,.csv,.json"). Additive to the
                             built-in defaults (.md, .markdown, .txt, .base, .canvas).
                             Leading dot optional.
+  --append-only=...         Comma-separated basenames refused for whole-file
+                            overwrite (e.g. "log.md"); clients must use
+                            mode:'append' or mode:'prepend'. Off by default.
 
 Examples:
   npx @bitbonsai/mcpvault
@@ -57,6 +60,7 @@ Examples:
 
 // Parse recognized flags, then treat the remaining positional args as the vault path.
 const allowedExtensions = parseAllowedExtensions(cliArgs);
+const appendOnly = parseAppendOnly(cliArgs);
 const positionalArgs = stripKnownFlags(cliArgs);
 
 // Join trailing args to support vault paths with spaces.
@@ -73,6 +77,7 @@ const pathFilter = allowedExtensions
 const server = createServer(vaultPath, {
   version: VERSION,
   ...(pathFilter && { pathFilter }),
+  ...(appendOnly && { appendOnly }),
 });
 const transport = new StdioServerTransport();
 await server.connect(transport);

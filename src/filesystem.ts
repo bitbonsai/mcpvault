@@ -1,4 +1,4 @@
-import { join, resolve, relative, dirname } from 'path';
+import { join, resolve, relative, dirname, basename } from 'path';
 import { homedir } from 'os';
 import { readdir, stat, readFile, writeFile, unlink, mkdir, access, rename, copyFile } from 'node:fs/promises';
 import { constants, realpathSync } from 'node:fs';
@@ -41,11 +41,14 @@ export class FileSystemService {
   private pathFilter: PathFilter;
   /** Per-absolute-path write serialization; closes the read-modify-write race within this process. */
   private writeChains: Map<string, Promise<void>> = new Map();
+  /** Basenames refused for whole-file overwrite (opt-in via the --append-only CLI flag). */
+  private readonly appendOnlyBasenames: Set<string>;
 
   constructor(
     private vaultPath: string,
     pathFilter?: PathFilter,
-    frontmatterHandler?: FrontmatterHandler
+    frontmatterHandler?: FrontmatterHandler,
+    appendOnly?: string[]
   ) {
     const resolved = resolve(vaultPath);
     try {
@@ -56,6 +59,7 @@ export class FileSystemService {
     }
     this.pathFilter = pathFilter || new PathFilter();
     this.frontmatterHandler = frontmatterHandler || new FrontmatterHandler();
+    this.appendOnlyBasenames = new Set(appendOnly ?? []);
   }
 
   /**
@@ -211,6 +215,14 @@ export class FileSystemService {
 
     if (!this.pathFilter.isAllowed(path)) {
       throw new Error(`Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`);
+    }
+
+    // Refuse whole-file overwrite of a configured append-only file: a stale client
+    // read followed by mode:'overwrite' would clobber entries another client appended
+    // after that read. mode:'append'/'prepend' re-read the file server-side under the
+    // per-path lock at write time, so they cannot lose concurrent data.
+    if (mode === 'overwrite' && this.appendOnlyBasenames.has(basename(path))) {
+      throw new Error(`Refused overwrite of append-only file '${basename(path)}'. Whole-file overwrite can clobber concurrent changes from other clients; use mode:'append' or mode:'prepend' instead.`);
     }
 
     // Validate content is a defined string to prevent writing literal "undefined"

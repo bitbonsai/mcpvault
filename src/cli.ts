@@ -4,6 +4,7 @@
  */
 
 const ALLOWED_EXTENSIONS_FLAG = "--allowed-extensions=";
+const APPEND_ONLY_FLAG = "--append-only=";
 
 /** Read a `--name=a,b,c` flag into a trimmed, non-empty list, or undefined if absent. */
 function readCsvFlag(args: string[], prefix: string): string[] | undefined {
@@ -26,7 +27,18 @@ export function parseAllowedExtensions(args: string[]): string[] | undefined {
   return values?.map((e) => (e.startsWith(".") ? e : `.${e}`));
 }
 
+/**
+ * Parse `--append-only=log.md,journal.md` into ['log.md', 'journal.md']: basenames
+ * whose whole-file overwrite is refused (clients must append/prepend). Returns
+ * undefined when the flag is absent.
+ */
+export function parseAppendOnly(args: string[]): string[] | undefined {
+  return readCsvFlag(args, APPEND_ONLY_FLAG);
+}
+
 /** Drop recognized `--flag=...` options, leaving positional args (e.g. the vault path). */
 export function stripKnownFlags(args: string[]): string[] {
-  return args.filter((a) => !a.startsWith(ALLOWED_EXTENSIONS_FLAG));
+  return args.filter(
+    (a) => !a.startsWith(ALLOWED_EXTENSIONS_FLAG) && !a.startsWith(APPEND_ONLY_FLAG),
+  );
 }

@@ -218,6 +218,7 @@ npm start ./Vault
 | Flag | Description |
 | --- | --- |
 | `--allowed-extensions=<ext,...>` | Comma-separated extra file extensions to permit on read/write, additive to the built-in defaults (`.md`, `.markdown`, `.txt`, `.base`, `.canvas`). Leading dot optional. Example: `--allowed-extensions=.html,.csv,.json`. |
+| `--append-only=<name,...>` | Comma-separated basenames refused for whole-file overwrite via `write_note` (e.g. `log.md`); clients must use `mode: "append"` or `"prepend"`. Off by default. Guards logs/journals an AI client might otherwise clobber with a stale-read overwrite. |
 
 ### AI Client Configuration
 
