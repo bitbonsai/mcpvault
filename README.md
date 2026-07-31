@@ -213,6 +213,12 @@ npm start /path/to/your/obsidian/vault
 npm start ./Vault
 ```
 
+### CLI Options
+
+| Flag | Description |
+| --- | --- |
+| `--allowed-extensions=<ext,...>` | Comma-separated extra file extensions to permit on read/write, additive to the built-in defaults (`.md`, `.markdown`, `.txt`, `.base`, `.canvas`). Leading dot optional. Example: `--allowed-extensions=.html,.csv,.json`. |
+
 ### AI Client Configuration
 
 #### Claude Desktop
