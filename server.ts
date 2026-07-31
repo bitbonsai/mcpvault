@@ -2,6 +2,8 @@
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer } from "./src/createServer.js";
+import { PathFilter } from "./src/pathfilter.js";
+import { parseAllowedExtensions, stripKnownFlags } from "./src/cli.js";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join, resolve } from "path";
@@ -30,32 +32,48 @@ mcpvault v${VERSION}
 Universal AI bridge for Obsidian vaults - connect any MCP-compatible assistant
 
 Usage:
-  npx @bitbonsai/mcpvault [vault-path]
+  npx @bitbonsai/mcpvault [vault-path] [--allowed-extensions=ext1,ext2,...]
 
 Arguments:
   [vault-path]    Optional path to your Obsidian vault directory
                   Defaults to current working directory when omitted
 
 Options:
-  --version, -v   Show version number
-  --help, -h      Show this help message
+  --version, -v             Show version number
+  --help, -h                Show this help message
+  --allowed-extensions=...  Comma-separated extra file extensions to permit on
+                            read/write (e.g. ".html,.csv,.json"). Additive to the
+                            built-in defaults (.md, .markdown, .txt, .base, .canvas).
+                            Leading dot optional.
 
 Examples:
   npx @bitbonsai/mcpvault
   npx @bitbonsai/mcpvault ~/Documents/MyVault
-  npx @bitbonsai/mcpvault ./Vault
-  npx @bitbonsai/mcpvault /path/to/obsidian/vault
+  npx @bitbonsai/mcpvault ./Vault --allowed-extensions=.html,.csv
   npx @bitbonsai/mcpvault "/path/with spaces/Obsidian Vault"
 `);
   process.exit(0);
 }
 
+// Parse recognized flags, then treat the remaining positional args as the vault path.
+const allowedExtensions = parseAllowedExtensions(cliArgs);
+const positionalArgs = stripKnownFlags(cliArgs);
+
 // Join trailing args to support vault paths with spaces.
 // When omitted, default to current working directory.
-const vaultPathArg = cliArgs.join(' ').trim();
+const vaultPathArg = positionalArgs.join(' ').trim();
 const vaultPath = resolve(vaultPathArg || process.cwd());
 
-const server = createServer(vaultPath, { version: VERSION });
+// A PathFilter carrying the extra extensions; PathFilter merges them additively
+// onto its built-in allowlist, so createServer needs no change for this flag.
+const pathFilter = allowedExtensions
+  ? new PathFilter({ allowedExtensions })
+  : undefined;
+
+const server = createServer(vaultPath, {
+  version: VERSION,
+  ...(pathFilter && { pathFilter }),
+});
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
