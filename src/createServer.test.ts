@@ -224,3 +224,39 @@ test("wiki_link resolves path-qualified link to the exact file", async () => {
     await server.close();
   }
 });
+
+// ── Tool annotations ─────────────────────────────────────────────────────────
+// Without annotations a client cannot tell delete_note apart from read_note:
+// MCP proxies derive the call variant from these hints, and an unannotated tool
+// falls back to whatever default that proxy picked.
+
+test("every tool carries annotations and stays closed-world", async () => {
+  const server = createServer(process.cwd());
+  // @ts-expect-error — reaching into the registered ListTools handler
+  const { tools } = await server._requestHandlers.get("tools/list")({ method: "tools/list", params: {} }, {});
+
+  expect(tools.length).toBeGreaterThan(0);
+  for (const tool of tools) {
+    expect(tool.annotations, `${tool.name} has no annotations`).toBeDefined();
+    expect(tool.annotations.openWorldHint, `${tool.name} should be closed-world`).toBe(false);
+  }
+});
+
+test("destructive and read-only tools are marked as such", async () => {
+  const server = createServer(process.cwd());
+  // @ts-expect-error — reaching into the registered ListTools handler
+  const { tools } = await server._requestHandlers.get("tools/list")({ method: "tools/list", params: {} }, {});
+  const byName = Object.fromEntries(tools.map((t: any) => [t.name, t.annotations]));
+
+  expect(byName.delete_note.destructiveHint).toBe(true);
+  expect(byName.delete_note.readOnlyHint).toBe(false);
+
+  expect(byName.read_note.readOnlyHint).toBe(true);
+  expect(byName.search_notes.readOnlyHint).toBe(true);
+  expect(byName.wiki_link.readOnlyHint).toBe(true);
+
+  // mutating, but must not be reported as destructive
+  expect(byName.write_note.readOnlyHint).toBe(false);
+  expect(byName.write_note.destructiveHint).toBe(false);
+  expect(byName.patch_note.destructiveHint).toBe(false);
+});
