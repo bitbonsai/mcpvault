@@ -2,7 +2,7 @@
 
 import { createServer } from "./src/createServer.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join, resolve } from "path";
 import { createServer as createHttpServer, IncomingMessage, ServerResponse } from "http";
@@ -10,9 +10,10 @@ import { randomUUID } from "crypto";
 
 // Get package.json version
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const packageJson = JSON.parse(
-  readFileSync(join(scriptDir, "package.json"), "utf-8")
-);
+const packageJsonPath = existsSync(join(scriptDir, "package.json"))
+  ? join(scriptDir, "package.json")
+  : join(scriptDir, "../package.json");
+const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
 const VERSION = packageJson.version;
 
 // Handle --version and --help flags
@@ -81,8 +82,15 @@ try {
   process.exit(1);
 }
 
-// Track active sessions for cleanup
-const sessions = new Map<string, StreamableHTTPServerTransport>();
+interface ActiveSession {
+  transport: StreamableHTTPServerTransport;
+  server: ReturnType<typeof createServer>;
+}
+
+// Keep both sides of each session so transport closes also release the MCP
+// server, and process shutdown can close every active connection cleanly.
+const sessions = new Map<string, ActiveSession>();
+const activeServers = new Set<ReturnType<typeof createServer>>();
 
 function authenticate(req: IncomingMessage): boolean {
   const key = req.headers["x-api-key"];
@@ -112,7 +120,9 @@ const httpServer = createHttpServer(async (req: IncomingMessage, res: ServerResp
 
   // Health check
   if (req.url === "/health") {
-    sendJson(res, 200, { status: "ok", version: VERSION, vault: vaultPath });
+    // Keep this endpoint safe to expose to an unauthenticated health checker.
+    // In particular, do not leak the host's absolute vault path.
+    sendJson(res, 200, { status: "ok", version: VERSION });
     return;
   }
 
@@ -148,27 +158,29 @@ const httpServer = createHttpServer(async (req: IncomingMessage, res: ServerResp
 
   // Get or create session
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
-  let transport: StreamableHTTPServerTransport;
+  let session: ActiveSession;
+  let isNewSession = false;
 
   if (sessionId && sessions.has(sessionId)) {
-    transport = sessions.get(sessionId)!;
-  } else if (req.method === "POST" && body && (body as any).method === "initialize") {
-    // New session
-    transport = new StreamableHTTPServerTransport({
+    session = sessions.get(sessionId)!;
+  } else if (!sessionId && req.method === "POST" && body && (body as any).method === "initialize") {
+    const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
     });
-
     const mcpServer = createServer(vaultPath, { version: VERSION });
-    // Cast needed: exactOptionalPropertyTypes doesn't allow assigning
-    // (() => void) | undefined to () => void, but the SDK handles it.
-    await mcpServer.connect(transport as any);
-    sessions.set(transport.sessionId!, transport);
 
-    transport.onclose = () => {
+    // The MCP Server owns the transport callbacks after connect(), so attach
+    // cleanup to the server rather than overwriting transport.onclose.
+    await mcpServer.connect(transport as any);
+    session = { transport, server: mcpServer };
+    activeServers.add(mcpServer);
+    mcpServer.onclose = () => {
+      activeServers.delete(mcpServer);
       if (transport.sessionId) {
         sessions.delete(transport.sessionId);
       }
     };
+    isNewSession = true;
   } else if (!sessionId && req.method === "POST") {
     sendJson(res, 400, { error: "Missing Mcp-Session-Id header. Send initialize request first." });
     return;
@@ -177,11 +189,22 @@ const httpServer = createHttpServer(async (req: IncomingMessage, res: ServerResp
     return;
   }
 
-  // Delegate to transport
+  // sessionId is assigned while the initialize request is handled, not when
+  // the transport connects. Store a new session only after handleRequest.
   try {
-    await transport.handleRequest(req, res, body);
+    await session.transport.handleRequest(req, res, body);
+    if (isNewSession) {
+      const createdSessionId = session.transport.sessionId;
+      if (!createdSessionId) {
+        throw new Error("Initialize completed without a session ID");
+      }
+      sessions.set(createdSessionId, session);
+    }
   } catch (error) {
     console.error("Transport error:", error);
+    if (isNewSession) {
+      await session.server.close().catch(() => {});
+    }
     if (!res.headersSent) {
       sendJson(res, 500, { error: "Internal server error" });
     }
@@ -189,9 +212,37 @@ const httpServer = createHttpServer(async (req: IncomingMessage, res: ServerResp
 });
 
 httpServer.listen(PORT, () => {
-  console.log(`mcpvault v${VERSION} listening on http://localhost:${PORT}`);
+  const address = httpServer.address();
+  const listeningPort = typeof address === "object" && address ? address.port : PORT;
+  console.log(`mcpvault v${VERSION} listening on http://localhost:${listeningPort}`);
   console.log(`Vault: ${vaultPath}`);
-  console.log(`MCP endpoint: http://localhost:${PORT}/mcp`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log(`MCP endpoint: http://localhost:${listeningPort}/mcp`);
+  console.log(`Health check: http://localhost:${listeningPort}/health`);
   console.log(`Auth: X-API-Key header required`);
 });
+
+let shuttingDown = false;
+async function shutdown(signal: "SIGTERM" | "SIGINT"): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`Received ${signal}, shutting down...`);
+
+  // Stop accepting requests first. Active SSE connections finish when their
+  // MCP servers close below, allowing httpServer.close() to complete.
+  const httpClosed = new Promise<void>((resolveClose, rejectClose) => {
+    httpServer.close((error) => error ? rejectClose(error) : resolveClose());
+  });
+  const serverResults = await Promise.allSettled(
+    [...activeServers].map((server) => server.close()),
+  );
+  const httpResult = await Promise.allSettled([httpClosed]);
+  const failed = serverResults.some((result) => result.status === "rejected")
+    || httpResult[0]?.status === "rejected";
+
+  sessions.clear();
+  activeServers.clear();
+  process.exit(failed ? 1 : 0);
+}
+
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
+process.once("SIGINT", () => void shutdown("SIGINT"));
