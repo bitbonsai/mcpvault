@@ -15,7 +15,9 @@ export declare class FileSystemService {
     private vaultPath;
     private frontmatterHandler;
     private pathFilter;
-    constructor(vaultPath: string, pathFilter?: PathFilter, frontmatterHandler?: FrontmatterHandler);
+    /** Basenames refused for whole-file overwrite (opt-in via the --append-only CLI flag). */
+    private readonly appendOnlyBasenames;
+    constructor(vaultPath: string, pathFilter?: PathFilter, frontmatterHandler?: FrontmatterHandler, appendOnly?: string[]);
     /**
      * Normalize an incoming path to be vault-relative. Strips leading slashes
      * and the vault path prefix when a caller accidentally passes an absolute path

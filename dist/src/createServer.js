@@ -7,9 +7,9 @@ import { SearchService } from "./search.js";
 import { handleWikiLinkTool } from "./wikilink/index.js";
 import { resolve } from "path";
 export function createServer(vaultPath, options = {}) {
-    const { name = "mcpvault", version = "0.0.0", pathFilter = new PathFilter(), frontmatterHandler = new FrontmatterHandler(), } = options;
+    const { name = "mcpvault", version = "0.0.0", pathFilter = new PathFilter(), frontmatterHandler = new FrontmatterHandler(), appendOnly, } = options;
     const resolvedVaultPath = resolve(vaultPath);
-    const fileSystem = new FileSystemService(resolvedVaultPath, pathFilter, frontmatterHandler);
+    const fileSystem = new FileSystemService(resolvedVaultPath, pathFilter, frontmatterHandler, appendOnly);
     const searchService = new SearchService(resolvedVaultPath, pathFilter);
     const server = new Server({ name, version }, {
         capabilities: { tools: {} },
