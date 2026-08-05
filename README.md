@@ -214,6 +214,12 @@ npm start /path/to/your/obsidian/vault
 npm start ./Vault
 ```
 
+### CLI Options
+
+| Flag | Description |
+| --- | --- |
+| `--append-only=<name,...>` | Comma-separated basenames refused for whole-file overwrite via `write_note` (e.g. `log.md`); clients must use `mode: "append"` or `"prepend"`. Off by default. Guards logs/journals an AI client might otherwise clobber with a stale-read overwrite. |
+
 ### AI Client Configuration
 
 #### Claude Desktop

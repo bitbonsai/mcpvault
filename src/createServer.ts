@@ -15,6 +15,8 @@ export interface CreateServerOptions {
   version?: string;
   pathFilter?: PathFilter;
   frontmatterHandler?: FrontmatterHandler;
+  /** Basenames refused for whole-file overwrite via write_note; clients must append/prepend. */
+  appendOnly?: string[];
 }
 
 export function createServer(vaultPath: string, options: CreateServerOptions = {}): Server {
@@ -23,10 +25,11 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
     version = "0.0.0",
     pathFilter = new PathFilter(),
     frontmatterHandler = new FrontmatterHandler(),
+    appendOnly,
   } = options;
 
   const resolvedVaultPath = resolve(vaultPath);
-  const fileSystem = new FileSystemService(resolvedVaultPath, pathFilter, frontmatterHandler);
+  const fileSystem = new FileSystemService(resolvedVaultPath, pathFilter, frontmatterHandler, appendOnly);
   const searchService = new SearchService(resolvedVaultPath, pathFilter);
 
   const server = new Server({ name, version }, {

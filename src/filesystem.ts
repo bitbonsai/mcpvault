@@ -1,4 +1,4 @@
-import { join, resolve, relative, dirname } from 'path';
+import { join, resolve, relative, dirname, basename } from 'path';
 import { homedir } from 'os';
 import { readdir, stat, readFile, writeFile, unlink, mkdir, access, rename, copyFile } from 'node:fs/promises';
 import { constants, realpathSync } from 'node:fs';
@@ -39,11 +39,14 @@ export function classifyWriteError(error: unknown, path: string): Error {
 export class FileSystemService {
   private frontmatterHandler: FrontmatterHandler;
   private pathFilter: PathFilter;
+  /** Basenames refused for whole-file overwrite (opt-in via the --append-only CLI flag). */
+  private readonly appendOnlyBasenames: Set<string>;
 
   constructor(
     private vaultPath: string,
     pathFilter?: PathFilter,
-    frontmatterHandler?: FrontmatterHandler
+    frontmatterHandler?: FrontmatterHandler,
+    appendOnly?: string[]
   ) {
     const resolved = resolve(vaultPath);
     try {
@@ -54,6 +57,7 @@ export class FileSystemService {
     }
     this.pathFilter = pathFilter || new PathFilter();
     this.frontmatterHandler = frontmatterHandler || new FrontmatterHandler();
+    this.appendOnlyBasenames = new Set(appendOnly ?? []);
   }
 
   /**
@@ -173,6 +177,13 @@ export class FileSystemService {
 
     if (!this.pathFilter.isAllowed(path)) {
       throw new Error(`Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`);
+    }
+
+    // Opt-in guard: a stale-read overwrite would drop entries other clients
+    // appended since that read, so refuse it and point at the append modes,
+    // which re-read the file server-side.
+    if (mode === 'overwrite' && this.appendOnlyBasenames.has(basename(path))) {
+      throw new Error(`Append-only file: ${path}. Whole-file overwrite is disabled for this file (--append-only); use mode "append" or "prepend" instead.`);
     }
 
     // Validate content is a defined string to prevent writing literal "undefined"
