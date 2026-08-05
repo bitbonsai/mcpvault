@@ -1,5 +1,19 @@
 import matter from 'gray-matter';
-import { parseDocument } from 'yaml';
+import { parse, stringify, parseDocument } from 'yaml';
+// Use the 'yaml' package as gray-matter's engine instead of js-yaml.
+// js-yaml@3.x (pinned by gray-matter@4) has known quadratic-DoS via
+// crafted YAML merge-key aliases (CVE-2023-44270). The 'yaml' package
+// is already a dependency (used in preserveStringify) and is not affected.
+const yamlEngine = {
+    // YAML 1.2 schema (default). Dates stay as strings, but this avoids the
+    // yaml-1.1 bug where single-letter keys like 'y'/'n' become booleans.
+    // Merge keys (<<) are not resolved, which is fine for Obsidian frontmatter.
+    parse: (str) => parse(str),
+    stringify: (data) => stringify(data),
+};
+function withYamlEngine(options = {}) {
+    return { ...options, engines: { yaml: yamlEngine } };
+}
 /**
  * Parse a frontmatter value that may be a JSON string (LLM clients sometimes
  * pass frontmatter as a serialized JSON string instead of an object).
@@ -29,7 +43,7 @@ export function parseFrontmatter(value) {
 export class FrontmatterHandler {
     parse(content) {
         try {
-            const parsed = matter(content);
+            const parsed = matter(content, withYamlEngine());
             return {
                 frontmatter: parsed.data,
                 content: parsed.content,
@@ -53,7 +67,7 @@ export class FrontmatterHandler {
             if (!frontmatterData || Object.keys(frontmatterData).length === 0) {
                 return content;
             }
-            return matter.stringify(content, frontmatterData);
+            return matter.stringify(content, frontmatterData, withYamlEngine());
         }
         catch (error) {
             throw new Error(`Failed to stringify frontmatter: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -67,7 +81,7 @@ export class FrontmatterHandler {
         };
         try {
             // Test if the frontmatter can be serialized to valid YAML using gray-matter
-            matter.stringify('', frontmatterData);
+            matter.stringify('', frontmatterData, withYamlEngine());
         }
         catch (error) {
             result.isValid = false;
@@ -123,7 +137,7 @@ export class FrontmatterHandler {
                 if (!updates || Object.keys(updates).length === 0) {
                     return content;
                 }
-                return matter.stringify(content, updates);
+                return matter.stringify(content, updates, withYamlEngine());
             }
             const doc = parseDocument(rawMatter.trimStart());
             for (const [key, value] of Object.entries(updates)) {

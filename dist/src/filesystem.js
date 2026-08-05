@@ -1,4 +1,5 @@
 import { join, resolve, relative, dirname } from 'path';
+import { homedir } from 'os';
 import { readdir, stat, readFile, writeFile, unlink, mkdir, access, rename, copyFile } from 'node:fs/promises';
 import { constants, realpathSync } from 'node:fs';
 import trash from 'trash';
@@ -49,17 +50,37 @@ export class FileSystemService {
         this.pathFilter = pathFilter || new PathFilter();
         this.frontmatterHandler = frontmatterHandler || new FrontmatterHandler();
     }
-    resolvePath(relativePath) {
-        // Handle undefined or null path
-        if (!relativePath) {
-            relativePath = '';
+    /**
+     * Normalize an incoming path to be vault-relative. Strips leading slashes
+     * and the vault path prefix when a caller accidentally passes an absolute path
+     * (e.g. "/Users/me/vault/wiki/note.md" instead of "wiki/note.md").
+     */
+    normalizePath(inputPath) {
+        if (!inputPath)
+            return '';
+        let p = inputPath.trim();
+        // Expand ~ to home directory so "~/vault/note.md" can be matched
+        if (p.startsWith('~/') || p === '~') {
+            p = p.replace('~', homedir());
         }
-        // Trim whitespace from path
-        relativePath = relativePath.trim();
-        // Normalize and resolve the path within the vault
-        const normalizedPath = relativePath.startsWith('/')
-            ? relativePath.slice(1)
-            : relativePath;
+        // Normalize path separators for cross-platform comparison (Windows backslashes)
+        const normalized = p.replace(/\\/g, '/');
+        const vaultPrefix = this.vaultPath.replace(/\\/g, '/');
+        // Strip vault path prefix before stripping leading slash, so absolute paths
+        // like "/Users/me/vault/wiki/note.md" are handled correctly.
+        if (normalized.startsWith(vaultPrefix + '/')) {
+            p = normalized.slice(vaultPrefix.length + 1);
+        }
+        else if (normalized === vaultPrefix) {
+            p = '';
+        }
+        else if (p.startsWith('/')) {
+            p = p.slice(1);
+        }
+        return p;
+    }
+    resolvePath(relativePath) {
+        const normalizedPath = this.normalizePath(relativePath);
         const fullPath = resolve(join(this.vaultPath, normalizedPath));
         // Security check: ensure path is within vault (lexical)
         const relativeToVault = relative(this.vaultPath, fullPath);
@@ -110,6 +131,7 @@ export class FileSystemService {
         return fullPath;
     }
     async readNote(path) {
+        path = this.normalizePath(path);
         const fullPath = this.resolvePath(path);
         if (!this.pathFilter.isAllowed(path)) {
             throw new Error(`Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`);
@@ -139,7 +161,8 @@ export class FileSystemService {
         }
     }
     async writeNote(params) {
-        const { path, content, frontmatter, mode = 'overwrite' } = params;
+        const { content, frontmatter, mode = 'overwrite' } = params;
+        const path = this.normalizePath(params.path);
         const fullPath = this.resolvePath(path);
         if (!this.pathFilter.isAllowed(path)) {
             throw new Error(`Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`);
@@ -201,7 +224,8 @@ export class FileSystemService {
         }
     }
     async patchNote(params) {
-        const { path, oldString, newString, replaceAll = false } = params;
+        const { oldString, newString, replaceAll = false } = params;
+        const path = this.normalizePath(params.path);
         if (!this.pathFilter.isAllowed(path)) {
             return {
                 success: false,
@@ -257,9 +281,11 @@ export class FileSystemService {
                 };
             }
             // Perform the replacement
+            // Use a replacer function so newString is inserted literally,
+            // without $ replacement pattern expansion ($$, $&, $`, $')
             const updatedContent = replaceAll
                 ? fullContent.split(oldString).join(newString)
-                : fullContent.replace(oldString, newString);
+                : fullContent.replace(oldString, () => newString);
             // Write the updated content
             const fullPath = this.resolvePath(path);
             await writeFile(fullPath, updatedContent, 'utf-8');
@@ -279,8 +305,8 @@ export class FileSystemService {
         }
     }
     async listDirectory(path = '') {
-        // Normalize path: treat '.' as root directory
-        const normalizedPath = path === '.' ? '' : path;
+        // Normalize path: treat '.' as root directory, strip vault prefix
+        const normalizedPath = path === '.' ? '' : this.normalizePath(path);
         const fullPath = this.resolvePath(normalizedPath);
         try {
             const entries = await readdir(fullPath, { withFileTypes: true });
@@ -340,6 +366,7 @@ export class FileSystemService {
         }
     }
     async exists(path) {
+        path = this.normalizePath(path);
         const fullPath = this.resolvePath(path);
         if (!this.pathFilter.isAllowed(path)) {
             return false;
@@ -353,6 +380,7 @@ export class FileSystemService {
         }
     }
     async isDirectory(path) {
+        path = this.normalizePath(path);
         const fullPath = this.resolvePath(path);
         if (!this.pathFilter.isAllowed(path)) {
             return false;
@@ -366,7 +394,9 @@ export class FileSystemService {
         }
     }
     async deleteNote(params) {
-        const { path, confirmPath, trashMode = 'none' } = params;
+        const { trashMode = 'none' } = params;
+        const path = this.normalizePath(params.path);
+        const confirmPath = this.normalizePath(params.confirmPath);
         // Confirmation check - paths must match exactly
         if (path !== confirmPath) {
             return {
@@ -459,7 +489,9 @@ export class FileSystemService {
         }
     }
     async moveNote(params) {
-        const { oldPath, newPath, overwrite = false } = params;
+        const { overwrite = false } = params;
+        const oldPath = this.normalizePath(params.oldPath);
+        const newPath = this.normalizePath(params.newPath);
         if (!this.pathFilter.isAllowed(oldPath)) {
             return {
                 success: false,
@@ -537,7 +569,11 @@ export class FileSystemService {
         }
     }
     async moveFile(params) {
-        const { oldPath, newPath, confirmOldPath, confirmNewPath, overwrite = false } = params;
+        const { overwrite = false } = params;
+        const oldPath = this.normalizePath(params.oldPath);
+        const newPath = this.normalizePath(params.newPath);
+        const confirmOldPath = this.normalizePath(params.confirmOldPath);
+        const confirmNewPath = this.normalizePath(params.confirmNewPath);
         if (oldPath !== confirmOldPath || newPath !== confirmNewPath) {
             return {
                 success: false,
@@ -661,7 +697,8 @@ export class FileSystemService {
         if (paths.length > 10) {
             throw new Error('Maximum 10 files per batch read request');
         }
-        const results = await Promise.allSettled(paths.map(async (path) => {
+        const results = await Promise.allSettled(paths.map(async (rawPath) => {
+            const path = this.normalizePath(rawPath);
             if (!this.pathFilter.isAllowed(path)) {
                 throw new Error(`Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`);
             }
@@ -694,7 +731,8 @@ export class FileSystemService {
         return { successful, failed };
     }
     async updateFrontmatter(params) {
-        const { path, frontmatter, merge = true } = params;
+        const { frontmatter, merge = true } = params;
+        const path = this.normalizePath(params.path);
         if (!this.pathFilter.isAllowed(path)) {
             throw new Error(`Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`);
         }
@@ -725,7 +763,8 @@ export class FileSystemService {
         }
     }
     async getNotesInfo(paths) {
-        const results = await Promise.allSettled(paths.map(async (path) => {
+        const results = await Promise.allSettled(paths.map(async (rawPath) => {
+            const path = this.normalizePath(rawPath);
             if (!this.pathFilter.isAllowed(path)) {
                 throw new Error(`Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`);
             }
@@ -760,7 +799,8 @@ export class FileSystemService {
             .map(result => result.value);
     }
     async manageTags(params) {
-        const { path, operation, tags = [] } = params;
+        const { operation, tags = [] } = params;
+        const path = this.normalizePath(params.path);
         if (!this.pathFilter.isAllowed(path)) {
             return {
                 path,
@@ -850,6 +890,61 @@ export class FileSystemService {
     }
     getVaultPath() {
         return this.vaultPath;
+    }
+    /**
+     * Resolve an Obsidian wiki link name to its vault-relative paths.
+     * Scans the vault for exact filename matches (name + .md).
+     *
+     * A name containing `/` is path-qualified (Obsidian emits these when a
+     * basename is ambiguous, e.g. [[folder/Note]]): it must match the full
+     * vault-relative path instead of just the basename.
+     *
+     * Returns all matches sorted root-first (by path depth ascending), with
+     * alphabetical tiebreak at equal depth. Empty array on zero matches.
+     * The caller decides how to handle zero/single/multi — this function does
+     * not throw on lookup outcomes.
+     *
+     * Throws only on caller misuse (empty name).
+     */
+    async findPathForWikiLink(wikiLinkName) {
+        if (!wikiLinkName.trim()) {
+            throw new Error('Empty wiki link — provide a document name inside [[ ]].');
+        }
+        const normalizedName = `${wikiLinkName}.md`;
+        const isPathQualified = wikiLinkName.includes('/');
+        const matches = [];
+        const scan = async (dirPath, relativePath = '') => {
+            const entries = await readdir(dirPath, { withFileTypes: true });
+            for (const entry of entries) {
+                const entryRelativePath = relativePath
+                    ? `${relativePath}/${entry.name}`
+                    : entry.name;
+                if (!this.pathFilter.isAllowed(entryRelativePath)) {
+                    continue;
+                }
+                if (entry.isDirectory()) {
+                    if (!this.pathFilter.isAllowed(`${entryRelativePath}/test.md`)) {
+                        continue;
+                    }
+                    await scan(join(dirPath, entry.name), entryRelativePath);
+                }
+                else if (entry.isFile() &&
+                    (isPathQualified
+                        ? entryRelativePath === normalizedName
+                        : entry.name === normalizedName)) {
+                    matches.push(entryRelativePath);
+                }
+            }
+        };
+        await scan(this.vaultPath);
+        // Depth-ascending (root-first), alphabetical tiebreak at equal depth.
+        // No current-folder context exists for a standalone MCP tool.
+        matches.sort((a, b) => {
+            const da = a.split('/').length;
+            const db = b.split('/').length;
+            return da !== db ? da - db : a.localeCompare(b);
+        });
+        return matches;
     }
     async getVaultStats(recentCount = 5) {
         let totalNotes = 0;

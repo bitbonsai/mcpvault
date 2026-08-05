@@ -5,7 +5,7 @@ description: >
   frontmatter, daily notes, backup, or sync. Route operations across MCP,
   Obsidian CLI/app actions, and git sync with safe defaults.
 metadata:
-  version: "2.0"
+  version: "2.1"
   author: bitbonsai
 ---
 
@@ -16,13 +16,18 @@ metadata:
 Use the backend that best matches user intent:
 
 1. **MCP (default for vault data operations)**
-   - Read/write/patch/move/search notes
+   - Read/write/patch/search notes
    - Frontmatter and tag updates
    - Metadata and batch note operations
 
 2. **Obsidian CLI/App context (only when app context is needed)**
    - Open a note in Obsidian from URI
    - Trigger app/plugin workflows that MCP cannot perform
+   - **Move/rename notes when the app is running.** The CLI's `move` goes
+     through Obsidian's runtime and rewrites every internal link pointing at
+     the old path. MCP's `move_note` is a filesystem move: backlinks in other
+     notes go stale. If Obsidian is not running, fall back to MCP `move_note`
+     and tell the user backlinks were not updated.
 
 3. **CLI git (sync/backup workflows)**
    - Initialize repo, configure remote, commit, pull, push
@@ -168,6 +173,11 @@ When the user asks for app-context operations (active file, open in editor, dail
 
    # Find unresolved links
    obsidian unresolved
+
+   # Move/rename a note — rewrites all internal links to the old path.
+   # Run `obsidian help move` first for the exact parameters of the
+   # installed version; do not guess them.
+   obsidian move ...
    ```
 
 4. Run `obsidian help` for the full command reference. The CLI evolves with Obsidian releases.
@@ -175,6 +185,7 @@ When the user asks for app-context operations (active file, open in editor, dail
 5. **When to use CLI vs MCP:**
    - MCP for reads/writes/search/tags/frontmatter (sandboxed, validated, works headless)
    - CLI for active file, daily notes with template expansion, backlinks, open in editor, plugin commands
+   - CLI for move/rename when the app is running (link-aware; see Routing Policy). MCP `move_note` as fallback, warning that backlinks were not updated
    - If unsure, prefer MCP
 
 ## Resources

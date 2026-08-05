@@ -4,6 +4,7 @@ import { FileSystemService } from "./filesystem.js";
 import { FrontmatterHandler, parseFrontmatter } from "./frontmatter.js";
 import { PathFilter } from "./pathfilter.js";
 import { SearchService } from "./search.js";
+import { handleWikiLinkTool } from "./wikilink/index.js";
 import { resolve } from "path";
 export function createServer(vaultPath, options = {}) {
     const { name = "mcpvault", version = "0.0.0", pathFilter = new PathFilter(), frontmatterHandler = new FrontmatterHandler(), } = options;
@@ -210,6 +211,25 @@ export function createServer(vaultPath, options = {}) {
                             prettyPrint: { type: "boolean", description: "Format JSON response with indentation (default: false)", default: false }
                         }
                     }
+                },
+                {
+                    name: "wiki_link",
+                    description: "Read an Obsidian wiki link. Accepts the same syntax as Obsidian: [[Document Name]] or [[Document Name|Display Text]], including table-authored escapes like [[Document Name\\|Display]] and path-qualified links like [[folder/Document Name]]. A #fragment suffix in the input is ignored. Searches the vault for an exact basename match (or exact vault-relative path match when the name contains '/') and returns the file's content. When multiple files share the basename, picks the first (vault root first, then alphabetical by path) and lists the other paths in structuredContent.alternatives. Content is returned bare — ready for direct use in context.",
+                    inputSchema: {
+                        type: "object",
+                        properties: {
+                            document: {
+                                type: "string",
+                                description: "The document name — what goes inside [[ ]]. e.g. 'My-Document'. Brackets and display text (|...) are stripped if present. The .md extension is always appended (never include it)."
+                            },
+                            prettyPrint: {
+                                type: "boolean",
+                                description: "Format JSON response with indentation (default: false)",
+                                default: false
+                            }
+                        },
+                        required: ["document"]
+                    }
                 }
             ]
         };
@@ -372,6 +392,8 @@ export function createServer(vaultPath, options = {}) {
                         content: [{ type: "text", text: JSON.stringify(tags, null, indent) }]
                     };
                 }
+                case "wiki_link":
+                    return await handleWikiLinkTool(fileSystem, trimmedArgs);
                 default:
                     throw new Error(`Unknown tool: ${toolName}`);
             }

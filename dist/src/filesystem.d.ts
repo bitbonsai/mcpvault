@@ -16,6 +16,12 @@ export declare class FileSystemService {
     private frontmatterHandler;
     private pathFilter;
     constructor(vaultPath: string, pathFilter?: PathFilter, frontmatterHandler?: FrontmatterHandler);
+    /**
+     * Normalize an incoming path to be vault-relative. Strips leading slashes
+     * and the vault path prefix when a caller accidentally passes an absolute path
+     * (e.g. "/Users/me/vault/wiki/note.md" instead of "wiki/note.md").
+     */
+    private normalizePath;
     private resolvePath;
     readNote(path: string): Promise<ParsedNote>;
     writeNote(params: NoteWriteParams): Promise<void>;
@@ -31,6 +37,22 @@ export declare class FileSystemService {
     getNotesInfo(paths: string[]): Promise<NoteInfo[]>;
     manageTags(params: TagManagementParams): Promise<TagManagementResult>;
     getVaultPath(): string;
+    /**
+     * Resolve an Obsidian wiki link name to its vault-relative paths.
+     * Scans the vault for exact filename matches (name + .md).
+     *
+     * A name containing `/` is path-qualified (Obsidian emits these when a
+     * basename is ambiguous, e.g. [[folder/Note]]): it must match the full
+     * vault-relative path instead of just the basename.
+     *
+     * Returns all matches sorted root-first (by path depth ascending), with
+     * alphabetical tiebreak at equal depth. Empty array on zero matches.
+     * The caller decides how to handle zero/single/multi — this function does
+     * not throw on lookup outcomes.
+     *
+     * Throws only on caller misuse (empty name).
+     */
+    findPathForWikiLink(wikiLinkName: string): Promise<string[]>;
     getVaultStats(recentCount?: number): Promise<VaultStats>;
     listAllTags(): Promise<Array<{
         tag: string;

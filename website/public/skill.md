@@ -24,9 +24,10 @@ Each operation maps to exactly one backend. The skill picks the right one automa
 | Read note | yes | — | — | Safe, sandboxed read via MCP |
 | Write / patch note | yes | — | — | Atomic writes with validation |
 | Search vault | yes | — | — | BM25-ranked full-text search |
+| Resolve [[wiki links]] | yes | — | — | wiki_link picks the shallowest match first, then locale-sorts equal-depth paths; other matches are returned as alternatives |
 | Manage tags / frontmatter | yes | — | — | Safe YAML merge |
 | List all tags with counts | yes | — | — | Filesystem scan, works headless |
-| Move / rename files | yes | — | — | Path-confirmed moves |
+| Move / rename files | yes | yes | — | CLI move rewrites internal links (app running); MCP move works headless |
 | Get active file | — | yes | — | Currently focused file in Obsidian |
 | Open note in Obsidian | — | yes | — | Open by path in editor |
 | Daily notes | — | yes | — | Create/read/append with template expansion |
@@ -54,8 +55,8 @@ The skill routes by intent:
 
 ### Routing defaults
 
-- **MCP first** for read/write/search/frontmatter/tags/moves.
-- **Obsidian CLI/App context** for app/editor/plugin-specific behavior.
+- **MCP first** for read/write/search/frontmatter/tags.
+- **Obsidian CLI/App context** for app/editor/plugin-specific behavior, and for move/rename while the app is running — the CLI rewrites internal links that a filesystem move would leave stale (MCP is the headless fallback).
 - **Git CLI** for sync, backup, and versioning actions.
 
 ### Preflight checks before sync
@@ -83,7 +84,7 @@ Skill: Done. Vault synced to origin/main. No force push used.
 
 **MCP Server** — Handles all file I/O: reading, writing, searching, patching, and organizing notes. Enforces path sandboxing, validates inputs, and performs atomic operations. The safe default for any vault mutation.
 
-**Obsidian CLI** — Bridges the gap for operations that need the running desktop app: opening notes in the editor, triggering plugin commands, exporting to PDF via Obsidian URI schemes.
+**Obsidian CLI** — Uses Obsidian's official CLI for operations that need the running desktop app: active file, opening notes in the editor, daily notes with template expansion, backlinks, plugin commands, and link-aware moves that update every reference. The skill tracks the current official CLI — a preflight detects your installed binary at runtime, so nothing is pinned to a version that can go stale.
 
 **Git Sync** — Plain git for vault syncing across devices. No Obsidian Sync subscription required. Works headlessly via cron, launchd, or CI — no app needs to be running.
 
@@ -137,7 +138,7 @@ Recommended .gitignore:
 - "what links to this note?" -> Obsidian CLI
 - "sync my vault" -> Git CLI
 - "use git to store my vault" -> Git CLI
-- "move this note to..." -> MCP
+- "move this note to..." -> Obsidian CLI (app running), MCP when headless
 
 **Not a fit for:**
 - General markdown editing (no vault context)
@@ -154,7 +155,7 @@ Steps: search_notes → read_note → open in Obsidian
 
 ### 2. Context-Aware Selection
 
-The skill picks the right backend automatically. File operations route through MCP; app-context actions use Obsidian URI schemes.
+The skill picks the right backend automatically. File operations route through MCP; app-context actions use the official Obsidian CLI, with obsidian:// URIs as fallback.
 
 Steps: Analyze user intent → Route to MCP or App → Execute with safety checks
 
@@ -198,7 +199,7 @@ description: >
   operations across MCP, Obsidian CLI/app
   actions, and git sync with safe defaults.
 metadata:
-  version: "2.0"
+  version: "2.1"
   author: bitbonsai
 ---
 ```

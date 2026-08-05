@@ -32,29 +32,21 @@ later runs can re-distill.
 
 ## Autonomy tiers
 
-### Auto-post (low-risk acknowledgments only)
+### Auto-post: DISABLED
 
-Post directly with `gh issue comment <n> -b "..."` / `gh pr comment <n> -b "..."`.
-Allowed only for comments that state a fact about the loop's own actions and
-commit the maintainer to nothing:
+**Maintainer directive (2026-07-23): never post any comment automatically.**
+Every comment, including low-risk acknowledgments, is drafted to the inbox for
+per-comment approval so the maintainer can edit before it goes live. Do not use
+`gh issue comment` / `gh pr comment` / `gh pr review` in a triage run.
 
-- "Draft PR #X is up for this, review when you can."
-- "Looking into this CI failure."
-- "Tracking this; no repro yet."
-- "This is being picked up by the morning triage."
-
-Rules for auto-posted comments:
-
-- State only what is true right now (a PR that exists, a state that is recorded).
-- No promises about timing, no commitments about whether/how it'll be fixed.
-- One ack per finding per run, do not re-comment the same ack across runs
-  (check `attempts` before posting).
-- In the maintainer's voice, but short.
+Draft acks in the same spirit as before ("Draft PR #X is up for this", "Looking
+into this CI failure"): state only what is true right now, no promises about
+timing or fixes, in the maintainer's voice, short.
 
 ### Stale-thread apology preamble
 
 When the issue/PR has been **open more than 2 weeks with no comment from
-`bitbonsai`**, open the auto-posted comment with a short apology for the delay,
+`bitbonsai`**, open the drafted comment with a short apology for the delay,
 then the ack. Detect it:
 
 ```
@@ -68,11 +60,10 @@ If `mine == 0` and age > 14 days, prepend a line like:
 > Sorry for the slow reply, day-job has kept me busy.
 
 Adapt the exact wording to `.triage/voice.md` (it stays an apology + ack, never
-a promise). One apology per thread, once posted, the thread is no longer
-silent, so later runs skip the preamble. If `voice.md` is still the placeholder,
-this comment is drafted to inbox like everything else, not auto-posted.
+a promise). One apology per thread; once one is posted, the thread is no longer
+silent, so later drafts skip the preamble.
 
-### Draft to inbox (everything substantive)
+### Draft to inbox (everything)
 
 Write under `## Drafts awaiting approval` in `inbox.md`. Never post. This covers
 any comment that:
@@ -99,6 +90,5 @@ did not make.
 - Never close, reopen, label, assign, or merge automatically. Those are inbox
   drafts at most.
 - Never post on behalf of the maintainer outside this repo.
-- Never auto-post twice for the same finding+run.
-- If `voice.md` is missing, skip auto-posting and draft everything until it
-  exists.
+- Never post, period: all comments and reviews go through the inbox (see
+  Auto-post: DISABLED above).

@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.4] - 2026-07-23
+
+### Fixed
+- `wiki_link` now resolves path-qualified links like `[[folder/Note]]` (which Obsidian produces when a basename is ambiguous) by matching the full vault-relative path instead of only the basename
+
+## [0.12.3] - 2026-07-23
+
+### Added
+- New `wiki_link` tool reads Obsidian wiki links: `[[Document Name]]`, `[[Document Name|Display Text]]`, table-authored escapes like `[[Document Name\|Display]]`, and `#fragment` suffixes. Returns the note content plus `structuredContent` with the resolved path and any alternative matches ([#101](https://github.com/bitbonsai/mcpvault/pull/101), thanks @renoirb)
+
+### Changed
+- `.trash/` (Obsidian's local trash) is now excluded from all tools via the default path filter ([#101](https://github.com/bitbonsai/mcpvault/pull/101))
+
+## [0.12.2] - 2026-07-23
+
+### Fixed
+- `patch_note` no longer corrupts insertions containing `$` replacement patterns (`$'`, `$&`, `` $` ``, `$$`); `newString` is now inserted literally ([#149](https://github.com/bitbonsai/mcpvault/issues/149), [#153](https://github.com/bitbonsai/mcpvault/pull/153))
+- Paths that accidentally include the vault prefix (absolute or `~/`-style) are now normalized to vault-relative before resolution ([#122](https://github.com/bitbonsai/mcpvault/issues/122), [#151](https://github.com/bitbonsai/mcpvault/pull/151), thanks @grushikhin)
+
+### Security
+- Cleared npm audit high-severity findings via lockfile-only dependency updates; CI audit gate green again ([#154](https://github.com/bitbonsai/mcpvault/pull/154))
+
+### Changed
+- Dependency updates: `@types/node`, `tsx`, `vitest` minors ([#150](https://github.com/bitbonsai/mcpvault/pull/150)); `actions/setup-node` 7 ([#152](https://github.com/bitbonsai/mcpvault/pull/152))
+
+## [0.12.1] - 2026-06-23
+
+### Security
+- Frontmatter parsing no longer uses `js-yaml` 3.x (pinned by `gray-matter`, affected by the CVE-2023-44270 quadratic-complexity DoS); gray-matter's engine is overridden with the `yaml` package already used elsewhere. YAML 1.2 semantics: dates stay strings, single-letter keys like `y`/`n` stay strings
+
 ## [0.12.0] - 2026-06-18
 
 ### Added

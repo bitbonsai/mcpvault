@@ -49,3 +49,14 @@ claude -p "$(cat "$PROMPT_FILE")" \
   --permission-mode acceptEdits \
   --allowedTools "Bash,Read,Write,Edit,Glob,Grep,Agent,Skill" \
   2>&1 | tee "$REPO_ROOT/.triage/runs/last-run.log"
+
+# --- notify (macOS) ---------------------------------------------------------
+# The loop never posts comments; drafts pile up in the inbox. Ping the
+# maintainer when there is something waiting for approval.
+if [[ "$(uname)" == "Darwin" ]]; then
+  DRAFTS=$(awk '/^## Drafts awaiting approval/{flag=1;next}/^## /{flag=0}flag' \
+    "$REPO_ROOT/.triage/inbox.md" 2>/dev/null | grep -c '^### ' || true)
+  if [[ "${DRAFTS:-0}" -gt 0 ]]; then
+    osascript -e "display notification \"$DRAFTS draft(s) awaiting approval in .triage/inbox.md\" with title \"mcpvault triage\" sound name \"Glass\"" || true
+  fi
+fi

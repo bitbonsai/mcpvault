@@ -27,6 +27,13 @@ describe("PathFilter", () => {
     expect(filter.isAllowed(".git/objects/abc123")).toBe(false);
   });
 
+  test("blocks .trash directory (Obsidian trash)", () => {
+    const filter = new PathFilter();
+    expect(filter.isAllowed(".trash")).toBe(false);
+    expect(filter.isAllowed(".trash/deleted-note.md")).toBe(false);
+    expect(filter.isAllowed(".trash/subfolder/old.md")).toBe(false);
+  });
+
   test("blocks node_modules", () => {
     const filter = new PathFilter();
     expect(filter.isAllowed("node_modules")).toBe(false);

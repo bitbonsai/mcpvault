@@ -49,3 +49,23 @@ const vaultPath = resolve(vaultPathArg || process.cwd());
 const server = createServer(vaultPath, { version: VERSION });
 const transport = new StdioServerTransport();
 await server.connect(transport);
+// Exit when the client disconnects (stdin EOF) or the process is asked to
+// terminate. Hosts that don't send an MCP shutdown request otherwise leave
+// this process running forever, orphaned once stdin closes (#159).
+let isShuttingDown = false;
+async function shutdown() {
+    if (isShuttingDown)
+        return;
+    isShuttingDown = true;
+    try {
+        await server.close();
+    }
+    catch {
+        // Best-effort: exit regardless of transport close errors.
+    }
+    process.exit(0);
+}
+process.stdin.on("end", shutdown);
+process.stdin.on("close", shutdown);
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);

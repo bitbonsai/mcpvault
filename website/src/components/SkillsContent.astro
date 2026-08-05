@@ -23,6 +23,13 @@ const routes = [
     notes: 'BM25-ranked full-text search',
   },
   {
+    operation: 'Resolve [[wiki links]]',
+    mcp: true,
+    app: false,
+    git: false,
+    notes: 'wiki_link picks the shallowest match first, then locale-sorts equal-depth paths; other matches are returned as alternatives',
+  },
+  {
     operation: 'Manage tags / frontmatter',
     mcp: true,
     app: false,
@@ -32,9 +39,9 @@ const routes = [
   {
     operation: 'Move / rename files',
     mcp: true,
-    app: false,
+    app: true,
     git: false,
-    notes: 'Path-confirmed moves',
+    notes: 'CLI move rewrites internal links (app running); MCP move works headless',
   },
   {
     operation: 'Open note in Obsidian',
@@ -83,7 +90,7 @@ const workflows = [
   },
   {
     title: 'Context-Aware Selection',
-    description: 'The skill picks the right backend automatically. File operations route through MCP; app-context actions use Obsidian URI schemes.',
+    description: 'The skill picks the right backend automatically. File operations route through MCP; app-context actions use the official Obsidian CLI, with obsidian:// URIs as fallback.',
     steps: ['Analyze user intent', 'Route to MCP or App', 'Execute with safety checks'],
     icon: '2',
   },
@@ -123,7 +130,7 @@ const triggers = [
   { phrase: 'open this note in Obsidian', backend: 'Obsidian CLI' },
   { phrase: 'sync my vault', backend: 'Git CLI' },
   { phrase: 'use git to store my vault', backend: 'Git CLI' },
-  { phrase: 'move this note to...', backend: 'MCP' },
+  { phrase: 'move this note to...', backend: 'Obsidian CLI, MCP when app is closed' },
 ];
 
 const syncFlow = [
@@ -336,8 +343,8 @@ const installCmd = 'npx skills add bitbonsai/mcpvault';
           <div>
             <h4 class="text-lg font-semibold text-foreground mb-3">Routing defaults</h4>
             <ul class="space-y-2 text-sm text-muted-foreground">
-              <li class="flex items-start gap-2"><span class="text-accent/60 mt-0.5">-</span><span><strong class="text-foreground">MCP first</strong> for read/write/search/frontmatter/tags/moves.</span></li>
-              <li class="flex items-start gap-2"><span class="text-accent/60 mt-0.5">-</span><span><strong class="text-foreground">Obsidian context</strong> for app/editor/plugin-specific behavior.</span></li>
+              <li class="flex items-start gap-2"><span class="text-accent/60 mt-0.5">-</span><span><strong class="text-foreground">MCP first</strong> for read/write/search/frontmatter/tags.</span></li>
+              <li class="flex items-start gap-2"><span class="text-accent/60 mt-0.5">-</span><span><strong class="text-foreground">Obsidian context</strong> for app/editor/plugin-specific behavior, and for move/rename while the app is running — the CLI rewrites internal links that a filesystem move would leave stale (MCP is the headless fallback).</span></li>
               <li class="flex items-start gap-2"><span class="text-accent/60 mt-0.5">-</span><span><strong class="text-foreground">Git CLI</strong> for sync, backup, and versioning actions.</span></li>
             </ul>
           </div>
@@ -382,7 +389,7 @@ git remote -v</code></pre>
         <div class="bg-card/30 backdrop-blur-xl rounded-2xl border border-border/50 p-8">
           <h3 class="text-xl font-semibold text-foreground mb-3">Obsidian CLI</h3>
           <p class="text-muted-foreground">
-            Bridges the gap for operations that need the running desktop app: opening notes in the editor, triggering plugin commands, exporting to PDF via Obsidian URI schemes.
+            Uses Obsidian's official CLI for operations that need the running desktop app: active file, opening notes in the editor, daily notes with template expansion, backlinks, plugin commands, and link-aware moves that update every reference. The skill tracks the current official CLI — a preflight detects your installed binary at runtime, so nothing is pinned to a version that can go stale.
           </p>
         </div>
         <div class="bg-card/30 backdrop-blur-xl rounded-2xl border border-border/50 p-8">

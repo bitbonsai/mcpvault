@@ -64,7 +64,8 @@ Text-aware move for markdown files. Reads source as UTF-8, writes to destination
 Binary-safe move. Requires double confirmation: `confirmOldPath === oldPath` AND `confirmNewPath === newPath`. Rejects directories. Falls back to copy+unlink for cross-filesystem moves.
 
 **When to use which:**
-- Renaming/moving `.md` files → `move_note`
+- Renaming/moving `.md` files with Obsidian running → Obsidian CLI `move` (rewrites internal links; see SKILL.md Routing Policy)
+- Renaming/moving `.md` files headless → `move_note` (filesystem move; backlinks in other notes go stale — tell the user)
 - Moving images, PDFs, attachments → `move_file`
 
 ## read_multiple_notes

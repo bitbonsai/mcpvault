@@ -141,15 +141,12 @@ rather than risk losing the spine.
 Voice comes from `.triage/voice.md`. Autonomy tiers (see
 `resources/comment-policy.md`):
 
-- **Auto-post** (low-risk acknowledgments): "draft PR #X is up for this",
-  "looking into this CI failure", "tracking this, no repro yet". Post with
-  `gh issue comment` / `gh pr comment`.
-- **Draft to inbox** (anything substantive): a judgment, a decision, a
-  promise, a closure, a "won't fix", or any reply that commits the maintainer
-  to something. Write it under `## Drafts awaiting approval` in `inbox.md`,
-  never post it.
-
-When unsure which tier, treat it as substantive and draft it.
+- **Auto-post: DISABLED** (maintainer directive 2026-07-23). Never post any
+  comment or review from the loop, not even low-risk acks.
+- **Draft to inbox** (everything): acks, judgments, decisions, promises,
+  closures, any reply. Write it under `## Drafts awaiting approval` in
+  `inbox.md` with its target, never post it. The maintainer approves, edits,
+  or discards each one.
 
 ### 7. Spill
 
@@ -192,8 +189,8 @@ Keep the alert until the maintainer confirms it shipped.
   `.github/workflows/*` are rejected. Do NOT attempt them; route any CI/workflow
   change to the inbox for the maintainer to apply (or to re-scope the token).
 - Respect the per-run finding cap; spill the overflow rather than running long.
-- Outward-facing writes (PR create, comments) follow the autonomy tiers
-  above, substantive speech is always drafted, never auto-posted.
+- Outward-facing writes: PR create is allowed; comments and reviews are NEVER
+  posted by the loop, every one is drafted to the inbox for approval.
 - If `gh` is unauthenticated or the tree is dirty, abort and write why to
   `inbox.md`.
 

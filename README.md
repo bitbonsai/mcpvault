@@ -4,6 +4,8 @@
 
 # MCPVault
 
+[![MCP Toplist](https://mcptoplist.com/badge/glama%2Fbitbonsai%2Fmcpvault.svg)](https://mcptoplist.com/server/glama%2Fbitbonsai%2Fmcpvault)
+
 A universal AI bridge for Obsidian vaults using the Model Context Protocol (MCP) standard. Connect any MCP-compatible AI assistant to your knowledge base - works with Claude, ChatGPT, and future AI tools. This server provides safe read/write access to your notes while preventing YAML frontmatter corruption.
 
 <div align="center">
@@ -124,13 +126,14 @@ MCP is an open protocol. You're not tied to any specific vendor or platform. You
 
 - ✅ Safe frontmatter parsing and validation using gray-matter with AST-aware updates that preserve raw formatting for unmodified fields
 - ✅ Path filtering to exclude `.obsidian` directory and other system files
-- ✅ **Complete MCP toolkit**: 14 methods covering all vault operations
+- ✅ **Complete MCP toolkit**: 16 tools covering all vault operations
   - File operations: `read_note`, `write_note`, `patch_note`, `delete_note`, `move_note`, `move_file`
   - Directory operations: `list_directory`
   - Batch operations: `read_multiple_notes`
   - Search: `search_notes` with multi-word matching and BM25 relevance reranking
   - Metadata: `get_frontmatter`, `update_frontmatter`, `get_notes_info`, `get_vault_stats`
-  - Tag management: `manage_tags` (add, remove, list)
+  - Tag management: `manage_tags` (add, remove, list), `list_all_tags`
+  - Wiki links: `wiki_link` picks the shallowest match first (vault root before nested folders), then uses locale-aware path sorting at the same depth. Other matches are returned as alternatives; punctuation may sort before digits, so `_Inbox` can come before `00.projects`.
 - ✅ Write modes: `overwrite`, `append`, `prepend` for flexible content editing
 - ✅ Tag management: add, remove, and list tags in notes
 - ✅ Safe deletion with confirmation requirement to prevent accidents

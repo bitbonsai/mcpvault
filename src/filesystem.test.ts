@@ -2,8 +2,8 @@ import { test, expect, beforeEach, afterEach, describe } from "vitest";
 import { FileSystemService, classifyWriteError } from "./filesystem.js";
 import { PathFilter } from "./pathfilter.js";
 import { writeFile, readFile, mkdir, mkdtemp, rm, symlink } from "fs/promises";
-import { join } from "path";
-import { tmpdir } from "os";
+import { join, relative } from "path";
+import { tmpdir, homedir } from "os";
 
 let testVaultPath: string;
 let fileSystem: FileSystemService;
@@ -338,6 +338,106 @@ test("patch note handles regex special characters literally", async () => {
   expect(updatedNote.content).not.toContain("$10.50");
 });
 
+test("patch note inserts newString containing $' literally without duplicating tail", async () => {
+  const testPath = "test-note.md";
+  const content = "# Test\n\nOld line here.\n\nTail content that must not be duplicated.";
+
+  await writeFile(join(testVaultPath, testPath), content);
+
+  const result = await fileSystem.patchNote({
+    path: testPath,
+    oldString: "Old line here.",
+    newString: "It's a bash snippet: echo $'hello'",
+    replaceAll: false
+  });
+
+  expect(result.success).toBe(true);
+
+  const updatedNote = await fileSystem.readNote(testPath);
+  expect(updatedNote.originalContent).toContain("It's a bash snippet: echo $'hello'");
+  expect(updatedNote.originalContent.match(/Tail content that must not be duplicated\./g)?.length).toBe(1);
+});
+
+test("patch note inserts newString containing $& literally", async () => {
+  const testPath = "test-note.md";
+  const content = "# Test\n\nOld line here.";
+
+  await writeFile(join(testVaultPath, testPath), content);
+
+  const result = await fileSystem.patchNote({
+    path: testPath,
+    oldString: "Old line here.",
+    newString: "Matched with $& pattern",
+    replaceAll: false
+  });
+
+  expect(result.success).toBe(true);
+
+  const updatedNote = await fileSystem.readNote(testPath);
+  expect(updatedNote.originalContent).toContain("Matched with $& pattern");
+  expect(updatedNote.originalContent).not.toContain("Old line here.");
+});
+
+test("patch note inserts newString containing $` literally", async () => {
+  const testPath = "test-note.md";
+  const content = "# Test\n\nOld line here.\n\nAfter text.";
+
+  await writeFile(join(testVaultPath, testPath), content);
+
+  const result = await fileSystem.patchNote({
+    path: testPath,
+    oldString: "Old line here.",
+    newString: "Backtick pattern $` stays literal",
+    replaceAll: false
+  });
+
+  expect(result.success).toBe(true);
+
+  const updatedNote = await fileSystem.readNote(testPath);
+  expect(updatedNote.originalContent).toContain("Backtick pattern $` stays literal");
+  expect(updatedNote.originalContent.match(/# Test/g)?.length).toBe(1);
+});
+
+test("patch note inserts newString containing $$ literally", async () => {
+  const testPath = "test-note.md";
+  const content = "# Test\n\nPrice: TBD";
+
+  await writeFile(join(testVaultPath, testPath), content);
+
+  const result = await fileSystem.patchNote({
+    path: testPath,
+    oldString: "Price: TBD",
+    newString: "Price: $$100",
+    replaceAll: false
+  });
+
+  expect(result.success).toBe(true);
+
+  const updatedNote = await fileSystem.readNote(testPath);
+  expect(updatedNote.originalContent).toContain("Price: $$100");
+});
+
+test("patch note with replaceAll inserts $ patterns literally", async () => {
+  const testPath = "test-note.md";
+  const content = "# Test\n\nTODO item\nTODO item\n\nTail content.";
+
+  await writeFile(join(testVaultPath, testPath), content);
+
+  const result = await fileSystem.patchNote({
+    path: testPath,
+    oldString: "TODO item",
+    newString: "Costs $' and $& and $$",
+    replaceAll: true
+  });
+
+  expect(result.success).toBe(true);
+  expect(result.matchCount).toBe(2);
+
+  const updatedNote = await fileSystem.readNote(testPath);
+  expect(updatedNote.originalContent.match(/Costs \$' and \$& and \$\$/g)?.length).toBe(2);
+  expect(updatedNote.originalContent.match(/Tail content\./g)?.length).toBe(1);
+});
+
 test("patch note works with fenced code blocks", async () => {
   const testPath = "code-fence-test.md";
   const content = "# Example\n\n```rust\nfn main() {\n    println!(\"hello\");\n}\n```\n";
@@ -561,8 +661,9 @@ test("delete note with local trash mode", async () => {
   const originalExists = await fileSystem.exists(testPath);
   expect(originalExists).toBe(false);
 
-  const trashedExists = await fileSystem.exists(".trash/trash-test.md");
-  expect(trashedExists).toBe(true);
+  // .trash/ is filtered from vault visibility; verify via raw fs
+  const trashedContent = await readFile(join(testVaultPath, ".trash/trash-test.md"), "utf-8");
+  expect(trashedContent).toBe(content);
 });
 
 test("delete note with system trash mode", async () => {
@@ -874,6 +975,57 @@ test("path traversal with .. is blocked", async () => {
 test("path traversal with nested .. is blocked", async () => {
   await expect(fileSystem.readNote("folder/../../outside.md"))
     .rejects.toThrow(/Path traversal not allowed/);
+});
+
+// ============================================================================
+// DEFENSIVE VAULT-PREFIX STRIPPING
+// ============================================================================
+
+test("path containing vault prefix is resolved correctly", async () => {
+  const testPath = "wiki/note.md";
+  const content = "# Note\n\nSome content here.";
+
+  await mkdir(join(testVaultPath, "wiki"), { recursive: true });
+  await writeFile(join(testVaultPath, testPath), content);
+
+  // Simulate a client passing an absolute path that includes the vault prefix.
+  // Use the resolved vault path (realpathSync) since that's what FileSystemService stores.
+  const resolvedVaultPath = fileSystem.getVaultPath();
+  const absolutePath = resolvedVaultPath + "/" + testPath;
+  const note = await fileSystem.readNote(absolutePath);
+
+  expect(note.content).toContain("Some content here.");
+});
+
+test("path containing vault prefix without trailing slash is resolved correctly", async () => {
+  const content = "# Root Note\n\nRoot content.";
+  await writeFile(join(testVaultPath, "root-note.md"), content);
+
+  const resolvedVaultPath = fileSystem.getVaultPath();
+  const absolutePath = resolvedVaultPath + "/root-note.md";
+  const note = await fileSystem.readNote(absolutePath);
+
+  expect(note.content).toContain("Root content.");
+});
+
+test("path with tilde vault prefix is resolved correctly", async () => {
+  const resolvedVaultPath = fileSystem.getVaultPath();
+  const home = homedir();
+
+  // Only run this test if the vault path is under the home directory
+  if (!resolvedVaultPath.startsWith(home)) {
+    return;
+  }
+
+  const content = "# Tilde Note\n\nTilde content.";
+  await writeFile(join(testVaultPath, "tilde-note.md"), content);
+
+  // Construct a ~/... path to the file
+  const relativeToHome = relative(home, resolvedVaultPath);
+  const tildePath = "~/" + relativeToHome + "/tilde-note.md";
+  const note = await fileSystem.readNote(tildePath);
+
+  expect(note.content).toContain("Tilde content.");
 });
 
 // ============================================================================
@@ -1453,5 +1605,66 @@ describe("classifyWriteError (#109)", () => {
     expect(classifyWriteError("nope", "n.md").message).toBe(
       "Failed to write file: n.md - Unknown error"
     );
+  });
+});
+
+// ============================================================================
+// FIND PATH FOR WIKI LINK TESTS
+// ============================================================================
+
+describe("findPathForWikiLink (#101)", () => {
+  test("findPathForWikiLink returns empty array on zero match", async () => {
+    await writeFile(join(testVaultPath, "Other.md"), "# Other");
+    const matches = await fileSystem.findPathForWikiLink("Missing");
+    expect(matches).toEqual([]);
+  });
+
+  test("findPathForWikiLink returns single match as one-element array", async () => {
+    await writeFile(join(testVaultPath, "Note.md"), "# Note");
+    const matches = await fileSystem.findPathForWikiLink("Note");
+    expect(matches).toEqual(["Note.md"]);
+  });
+
+  test("findPathForWikiLink sorts root before nested", async () => {
+    await writeFile(join(testVaultPath, "Note.md"), "# root");
+    await mkdir(join(testVaultPath, "deep/nested"), { recursive: true });
+    await writeFile(join(testVaultPath, "deep/nested/Note.md"), "# nested");
+    const matches = await fileSystem.findPathForWikiLink("Note");
+    expect(matches).toEqual(["Note.md", "deep/nested/Note.md"]);
+  });
+
+  test("findPathForWikiLink alphabetical tiebreak at equal depth", async () => {
+    await mkdir(join(testVaultPath, "zeta"), { recursive: true });
+    await mkdir(join(testVaultPath, "alpha"), { recursive: true });
+    await writeFile(join(testVaultPath, "zeta/Note.md"), "# zeta");
+    await writeFile(join(testVaultPath, "alpha/Note.md"), "# alpha");
+    const matches = await fileSystem.findPathForWikiLink("Note");
+    expect(matches).toEqual(["alpha/Note.md", "zeta/Note.md"]);
+  });
+
+  test("findPathForWikiLink throws on empty name (caller misuse)", async () => {
+    await expect(fileSystem.findPathForWikiLink("")).rejects.toThrow(/Empty wiki link/);
+    await expect(fileSystem.findPathForWikiLink("   ")).rejects.toThrow(/Empty wiki link/);
+  });
+
+  test("findPathForWikiLink resolves path-qualified name to exact path", async () => {
+    await writeFile(join(testVaultPath, "Note.md"), "# root");
+    await mkdir(join(testVaultPath, "deep"), { recursive: true });
+    await writeFile(join(testVaultPath, "deep/Note.md"), "# deep");
+    const matches = await fileSystem.findPathForWikiLink("deep/Note");
+    expect(matches).toEqual(["deep/Note.md"]);
+  });
+
+  test("findPathForWikiLink path-qualified name does not match basename elsewhere", async () => {
+    await writeFile(join(testVaultPath, "Note.md"), "# root");
+    const matches = await fileSystem.findPathForWikiLink("missing/Note");
+    expect(matches).toEqual([]);
+  });
+
+  test("findPathForWikiLink path-qualified name matches nested folders", async () => {
+    await mkdir(join(testVaultPath, "a/b"), { recursive: true });
+    await writeFile(join(testVaultPath, "a/b/Note.md"), "# nested");
+    const matches = await fileSystem.findPathForWikiLink("a/b/Note");
+    expect(matches).toEqual(["a/b/Note.md"]);
   });
 });

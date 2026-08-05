@@ -16,7 +16,7 @@ import { Rocket } from 'lucide-react';
             <h3 class="text-lg font-semibold text-foreground flex items-center gap-2">
               Recent Updates
               <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-accent/20 text-accent border border-accent/30">
-                v0.11.2
+                v0.12.4
               </span>
             </h3>
             <button
@@ -34,23 +34,51 @@ import { Rocket } from 'lucide-react';
               </svg>
             </button>
           </div>
-          <div class="mb-4 rounded-xl border border-green-400/40 bg-green-500/15 px-4 py-3">
-            <p class="text-sm text-foreground leading-relaxed">
-              <Rocket className="w-4 h-4 text-green-400" aria-hidden="true" />
-              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-black text-green-300 border border-black leading-tight">JUST LAUNCHED</span>
-              Obsidian Skill routing is now live with MCP + Obsidian context + Git CLI sync, including preflight checks and setup guidance.
-              <a href="/skill" class="ml-1 inline font-semibold text-green-300 hover:text-green-200 underline decoration-green-300/70 underline-offset-2 transition-colors whitespace-nowrap">See skill flows</a>
-            </p>
-          </div>
           <div class="mb-4">
             <p class="text-muted-foreground leading-relaxed">
-              <span class="font-medium text-foreground">v0.11.2 (April 2026):</span> <code>delete_note</code> now supports soft-delete with <code>trashMode</code>: <code>none</code> (permanent), <code>local</code> (move to <code>.trash/</code> inside vault), or <code>system</code> (OS trash).
-              (<a href="https://github.com/bitbonsai/mcpvault/issues/91" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-2 transition-colors">#91</a>)
+              <span class="font-medium text-foreground">v0.12.4 (July 2026):</span> New <code>wiki_link</code> tool reads Obsidian wiki links — <code>[[Note]]</code>, <code>[[Note|Display]]</code>, and path-qualified <code>[[folder/Note]]</code> — and returns the note ready for context, with alternative paths when a name is ambiguous.
+              (<a href="https://github.com/bitbonsai/mcpvault/pull/101" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-2 transition-colors">#101</a>)
             </p>
           </div>
 
           <div id="older-updates" class="older-updates is-collapsed" data-updates-panel>
             <ul class="text-muted-foreground space-y-2">
+              <li>
+                <span class="font-medium text-foreground">v0.12.3 (July 2026):</span> <code>wiki_link</code> lands
+                (<a href="https://github.com/bitbonsai/mcpvault/pull/101" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-2 transition-colors">#101</a>, thanks @renoirb);
+                Obsidian's <code>.trash/</code> is now excluded from all tools
+              </li>
+              <li>
+                <span class="font-medium text-foreground">v0.12.2 (July 2026):</span> <code>patch_note</code> no longer corrupts insertions containing <code>$</code> replacement patterns
+                (<a href="https://github.com/bitbonsai/mcpvault/issues/149" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-2 transition-colors">#149</a>),
+                and paths that accidentally include the vault prefix (absolute or <code>~/</code>) are normalized to vault-relative
+                (<a href="https://github.com/bitbonsai/mcpvault/issues/122" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-2 transition-colors">#122</a>)
+              </li>
+              <li>
+                <span class="font-medium text-foreground">v0.12.1 (June 2026):</span> Security: frontmatter parsing moved off <code>js-yaml</code> 3.x (CVE-2023-44270) to the <code>yaml</code> package
+              </li>
+              <li>
+                <span class="font-medium text-foreground">v0.12.0 (June 2026):</span> <code>search_notes</code> now accepts <code>pathPrefix</code> and <code>excludePaths</code> to scope searches to (or away from) vault subtrees
+                (<a href="https://github.com/bitbonsai/mcpvault/issues/126" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-2 transition-colors">#126</a>)
+              </li>
+              <li>
+                <span class="font-medium text-foreground">v0.11.5 (June 2026):</span> Security: restricted directories (<code>.git</code>, <code>.obsidian</code>, <code>node_modules</code>) now denied at any depth
+                (<a href="https://github.com/bitbonsai/mcpvault/security/advisories/GHSA-9c83-rr99-vfwj" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-2 transition-colors">GHSA-9c83</a>);
+                write errors classified by error code, not message
+                (<a href="https://github.com/bitbonsai/mcpvault/issues/109" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-2 transition-colors">#109</a>)
+              </li>
+              <li>
+                <span class="font-medium text-foreground">v0.11.4 (June 2026):</span> Security: deny-list matching is now case-insensitive with canonicalized trailing dots/spaces
+                (<a href="https://github.com/bitbonsai/mcpvault/security/advisories/GHSA-j99q-93c9-h869" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-2 transition-colors">GHSA-j99q</a>)
+              </li>
+              <li>
+                <span class="font-medium text-foreground">v0.11.3 (June 2026):</span> Missing <code>path</code> arguments return a clear error instead of a <code>TypeError</code>
+                (<a href="https://github.com/bitbonsai/mcpvault/issues/107" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-2 transition-colors">#107</a>)
+              </li>
+              <li>
+                <span class="font-medium text-foreground">v0.11.2 (April 2026):</span> <code>delete_note</code> now supports soft-delete with <code>trashMode</code>: <code>none</code> (permanent), <code>local</code> (move to <code>.trash/</code> inside vault), or <code>system</code> (OS trash).
+                (<a href="https://github.com/bitbonsai/mcpvault/issues/91" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-2 transition-colors">#91</a>)
+              </li>
               <li>
                 <span class="font-medium text-foreground">v0.11.1 (April 2026):</span> Frontmatter updates now use AST-aware YAML preservation. Unmodified fields keep their original formatting: plain dates stay as <code>YYYY-MM-DD</code>, quoted strings keep their quotes, and <code>HH:MM</code> values are no longer misread as sexagesimal integers.
                 (<a href="https://github.com/bitbonsai/mcpvault/issues/77" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-2 transition-colors">#77</a>)

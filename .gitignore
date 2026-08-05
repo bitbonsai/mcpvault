@@ -138,3 +138,6 @@ website/.astro/
 website/.wrangler/
 website/package-lock.json
 website/bun.lock
+
+.plans/next.md
+.plans/next.prev.md

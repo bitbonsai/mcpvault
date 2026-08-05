@@ -1,9 +1,8 @@
 {
   "compilerOptions": {
     "target": "es2022",
-    "module": "es2022",
-    "moduleResolution": "node",
-    "ignoreDeprecations": "6.0",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "types": ["node"],
     "lib": ["es2022"],
     "allowSyntheticDefaultImports": true,
