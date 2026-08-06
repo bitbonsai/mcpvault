@@ -15,6 +15,8 @@ export declare class FileSystemService {
     private vaultPath;
     private frontmatterHandler;
     private pathFilter;
+    /** Per-absolute-path write serialization; closes the read-modify-write race within this process. */
+    private writeChains;
     constructor(vaultPath: string, pathFilter?: PathFilter, frontmatterHandler?: FrontmatterHandler);
     /**
      * Normalize an incoming path to be vault-relative. Strips leading slashes
@@ -23,6 +25,15 @@ export declare class FileSystemService {
      */
     private normalizePath;
     private resolvePath;
+    /**
+     * Serialize async mutations to a single absolute path: concurrent calls for the
+     * same path run one at a time in arrival order, while different paths stay
+     * parallel. Prevents two read-modify-write callers from interleaving and
+     * clobbering each other's changes.
+     */
+    private withPathLock;
+    /** Write a file atomically: write a temp sibling, then rename over the target (atomic on the same filesystem). */
+    private atomicWrite;
     readNote(path: string): Promise<ParsedNote>;
     writeNote(params: NoteWriteParams): Promise<void>;
     patchNote(params: PatchNoteParams): Promise<PatchNoteResult>;
