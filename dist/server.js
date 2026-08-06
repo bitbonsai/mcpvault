@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer } from "./src/createServer.js";
+import { parseAppendOnly, stripKnownFlags } from "./src/cli.js";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join, resolve } from "path";
@@ -23,30 +24,39 @@ mcpvault v${VERSION}
 Universal AI bridge for Obsidian vaults - connect any MCP-compatible assistant
 
 Usage:
-  npx @bitbonsai/mcpvault [vault-path]
+  npx @bitbonsai/mcpvault [vault-path] [--append-only=name,...]
 
 Arguments:
   [vault-path]    Optional path to your Obsidian vault directory
                   Defaults to current working directory when omitted
 
 Options:
-  --version, -v   Show version number
-  --help, -h      Show this help message
+  --version, -v      Show version number
+  --help, -h         Show this help message
+  --append-only=...  Comma-separated basenames refused for whole-file
+                     overwrite (e.g. "log.md"); clients must use
+                     mode:'append' or mode:'prepend'. Off by default.
 
 Examples:
   npx @bitbonsai/mcpvault
   npx @bitbonsai/mcpvault ~/Documents/MyVault
-  npx @bitbonsai/mcpvault ./Vault
+  npx @bitbonsai/mcpvault ./Vault --append-only=log.md
   npx @bitbonsai/mcpvault /path/to/obsidian/vault
   npx @bitbonsai/mcpvault "/path/with spaces/Obsidian Vault"
 `);
     process.exit(0);
 }
+// Parse recognized flags, then treat the remaining positional args as the vault path.
+const appendOnly = parseAppendOnly(cliArgs);
+const positionalArgs = stripKnownFlags(cliArgs);
 // Join trailing args to support vault paths with spaces.
 // When omitted, default to current working directory.
-const vaultPathArg = cliArgs.join(' ').trim();
+const vaultPathArg = positionalArgs.join(' ').trim();
 const vaultPath = resolve(vaultPathArg || process.cwd());
-const server = createServer(vaultPath, { version: VERSION });
+const server = createServer(vaultPath, {
+    version: VERSION,
+    ...(appendOnly && { appendOnly }),
+});
 const transport = new StdioServerTransport();
 await server.connect(transport);
 // Exit when the client disconnects (stdin EOF) or the process is asked to
