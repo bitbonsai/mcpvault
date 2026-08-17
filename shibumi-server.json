@@ -10,6 +10,9 @@
   "branch": "main",
   "webhookUrl": "https://mcpvault.org/hooks/github/mcpvault-org",
   "service": "web",
+  "port": 9103,
   "healthPath": "/healthz",
+  "deploymentMode": "prebuilt",
+  "platform": "linux/arm64",
   "cutoverRequired": false
 }
