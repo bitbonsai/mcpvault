@@ -422,7 +422,8 @@ export function UpdateCallout() {
 
           <p class="latest-update">
             <span class="entry-version">v0.16.0 (August 2026):</span> Moved to <strong>MCP v2</strong>, the official SDK for the 2026-07-28 specification. One
-            process accepts both protocol generations, with no material slowdown in our <a href="/benchmarks/">benchmarks</a>.
+            process accepts both protocol generations, with no material slowdown in our <a href="/benchmarks/">benchmarks</a>. Maintenance: transitive <code>js-yaml</code> now uses
+            3.15.2, resolving <a href="https://github.com/advisories/GHSA-2883-xcg3-v3hh" target="_blank" rel="noopener noreferrer">GHSA-2883-xcg3-v3hh</a>.
           </p>
 
           <div id="older-updates" class="older-updates is-collapsed" data-updates-panel x-bind:class="{ 'is-expanded': expanded, 'is-collapsed': !expanded }">
