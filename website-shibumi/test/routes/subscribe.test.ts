@@ -50,7 +50,7 @@ describe("POST /api/subscribe", () => {
     const res = await app.request("/api/subscribe", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "person@example.com" }),
+      body: JSON.stringify({ email: "person@example.com", website: "" }),
     });
 
     expect(res.status).toBe(200);
@@ -68,12 +68,36 @@ describe("POST /api/subscribe", () => {
     const res = await app.request("/api/subscribe", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: "email=person%40example.com",
+      body: "email=person%40example.com&website=",
     });
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
     expect(createCalls).toEqual([{ audienceId: "aud_test", email: "person@example.com" }]);
+  });
+
+  test("missing or filled honeypots return fake success without contacting Resend", async () => {
+    const { client, createCalls, sendCalls } = fakeClient();
+    const app = createApp({ subscribe: { env: CONFIGURED_ENV, resendClient: client } });
+    const requests = [
+      { contentType: "application/json", body: JSON.stringify({ email: "person@example.com" }) },
+      { contentType: "application/json", body: JSON.stringify({ email: "person@example.com", website: "https://spam.test" }) },
+      { contentType: "application/x-www-form-urlencoded", body: "email=person%40example.com" },
+      { contentType: "application/x-www-form-urlencoded", body: "email=person%40example.com&website=https%3A%2F%2Fspam.test" },
+    ];
+
+    for (const request of requests) {
+      const res = await app.request("/api/subscribe", {
+        method: "POST",
+        headers: { "content-type": request.contentType },
+        body: request.body,
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ success: true });
+    }
+
+    expect(createCalls).toHaveLength(0);
+    expect(sendCalls).toHaveLength(0);
   });
 
   test("normalizes email (trim + lowercase) before calling Resend, for both body formats", async () => {
@@ -83,14 +107,14 @@ describe("POST /api/subscribe", () => {
     const jsonRes = await app.request("/api/subscribe", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "  Person@Example.COM  " }),
+      body: JSON.stringify({ email: "  Person@Example.COM  ", website: "" }),
     });
     expect(jsonRes.status).toBe(200);
 
     const formRes = await app.request("/api/subscribe", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: "email=" + encodeURIComponent("  Other@Example.COM  "),
+      body: "email=" + encodeURIComponent("  Other@Example.COM  ") + "&website=",
     });
     expect(formRes.status).toBe(200);
 
@@ -107,7 +131,7 @@ describe("POST /api/subscribe", () => {
     const res = await app.request("/api/subscribe", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ website: "" }),
     });
 
     expect(res.status).toBe(400);
@@ -123,7 +147,7 @@ describe("POST /api/subscribe", () => {
     const res = await app.request("/api/subscribe", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "not-an-email" }),
+      body: JSON.stringify({ email: "not-an-email", website: "" }),
     });
 
     expect(res.status).toBe(400);
@@ -166,7 +190,7 @@ describe("POST /api/subscribe", () => {
     const res = await app.request("/api/subscribe", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "person@example.com" }),
+      body: JSON.stringify({ email: "person@example.com", website: "" }),
     });
 
     expect(res.status).toBe(500);
@@ -182,7 +206,7 @@ describe("POST /api/subscribe", () => {
     const res = await app.request("/api/subscribe", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "person@example.com" }),
+      body: JSON.stringify({ email: "person@example.com", website: "" }),
     });
 
     expect(res.status).toBe(200);
@@ -197,7 +221,7 @@ describe("POST /api/subscribe", () => {
     const res = await app.request("/api/subscribe", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "person@example.com" }),
+      body: JSON.stringify({ email: "person@example.com", website: "" }),
     });
 
     expect(res.status).toBe(500);
@@ -233,7 +257,7 @@ describe("POST /api/subscribe", () => {
         app.request("/api/subscribe", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email: "person@example.com" }),
+          body: JSON.stringify({ email: "person@example.com", website: "" }),
         }),
       );
 
@@ -260,7 +284,7 @@ describe("POST /api/subscribe", () => {
       await app.request("/api/subscribe", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: "  Person@Example.COM  " }),
+        body: JSON.stringify({ email: "  Person@Example.COM  ", website: "" }),
       });
 
       expect(sendCalls[0]?.options?.idempotencyKey).toBe(welcomeIdempotencyKey("person@example.com"));
@@ -270,7 +294,7 @@ describe("POST /api/subscribe", () => {
       const { client, sendCalls } = fakeClient();
       const app = createApp({ subscribe: { env: CONFIGURED_ENV, resendClient: client } });
 
-      const body = JSON.stringify({ email: "person@example.com" });
+      const body = JSON.stringify({ email: "person@example.com", website: "" });
       await app.request("/api/subscribe", { method: "POST", headers: { "content-type": "application/json" }, body });
       await app.request("/api/subscribe", { method: "POST", headers: { "content-type": "application/json" }, body });
 
@@ -289,7 +313,7 @@ describe("POST /api/subscribe", () => {
       await app.request("/api/subscribe", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: "person@example.com" }),
+        body: JSON.stringify({ email: "person@example.com", website: "" }),
       });
 
       expect(sendCalls[0]?.payload.html).toContain(
@@ -304,7 +328,7 @@ describe("POST /api/subscribe", () => {
       const { client, createCalls } = fakeClient();
       const app = createApp({ subscribe: { env: CONFIGURED_ENV, resendClient: client } });
 
-      const oversized = JSON.stringify({ email: "person@example.com", padding: "x".repeat(8 * 1024) });
+      const oversized = JSON.stringify({ email: "person@example.com", website: "", padding: "x".repeat(8 * 1024) });
       const res = await app.request("/api/subscribe", {
         method: "POST",
         headers: { "content-type": "application/json" },

@@ -7,7 +7,7 @@
  *
  * Registered under the name `newsletterSignup` in `alpine.ts`.
  * `NewsletterSignup.tsx` only ever *names* this module and its `submit()`
- * method in HTML attributes (`x-data="newsletterSignup"`, `x-model="email"`,
+ * method in HTML attributes (`x-data="newsletterSignup"`, `x-model`,
  * `x-on:submit.prevent="submit()"`, `x-bind:disabled="status ===
  * 'submitting'"`, `x-text="status === 'submitting' ? 'Adding…' : 'Join the
  * list'"`, `x-bind:hidden="status !== 'success'"`) -- every attribute above
@@ -30,6 +30,7 @@ export type NewsletterStatus = "idle" | "submitting" | "success" | "error";
 
 export interface NewsletterSignupData {
   email: string;
+  website: string;
   status: NewsletterStatus;
   submit(this: NewsletterSignupData): Promise<void>;
 }
@@ -42,6 +43,7 @@ export interface NewsletterSignupData {
 export function newsletterSignup(fetchImpl: typeof fetch = fetch): NewsletterSignupData {
   return {
     email: "",
+    website: "",
     status: "idle",
     async submit() {
       const email = this.email.trim();
@@ -56,7 +58,7 @@ export function newsletterSignup(fetchImpl: typeof fetch = fetch): NewsletterSig
         const res = await fetchImpl("/api/subscribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, website: this.website }),
         });
 
         if (!res.ok) throw new Error(`subscribe request failed with status ${res.status}`);
@@ -66,6 +68,7 @@ export function newsletterSignup(fetchImpl: typeof fetch = fetch): NewsletterSig
 
         this.status = "success";
         this.email = "";
+        this.website = "";
       } catch {
         this.status = "error";
       }

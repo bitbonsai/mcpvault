@@ -27,7 +27,7 @@
  * POST carries no ambient credentials and gains an attacker nothing beyond
  * what a direct anonymous POST already allows: subscribing an email
  * address, which the recipient can self-service unsubscribe. Abuse is
- * bounded by the 4 KB body cap below and edge rate limiting.
+ * bounded by the honeypot below, the 4 KB body cap, and edge rate limiting.
  *
  * Rate limiting (documented decision): the container is stateless, so any
  * in-memory limiter resets on every restart and is best-effort at most.
@@ -91,19 +91,28 @@ async function defaultCreateResendClient(apiKey: string): Promise<SubscribeResen
   return new Resend(apiKey);
 }
 
-/** Extracts the raw `email` field from a JSON or form-urlencoded body; anything else yields null. */
-async function readEmailField(request: Request): Promise<string | null> {
+interface SubscribeFields {
+  email: string | null;
+  website: string | null;
+}
+
+/** Extracts form fields from JSON or form-urlencoded bodies; anything else yields null. */
+async function readSubscribeFields(request: Request): Promise<SubscribeFields | null> {
   const contentType = request.headers.get("content-type") ?? "";
 
   if (contentType.includes("application/json")) {
     const parsed: unknown = await request.json().catch(() => null);
-    const value = (parsed as { email?: unknown } | null)?.email;
-    return typeof value === "string" ? value : null;
+    if (!parsed || typeof parsed !== "object") return null;
+    const { email, website } = parsed as { email?: unknown; website?: unknown };
+    return {
+      email: typeof email === "string" ? email : null,
+      website: typeof website === "string" ? website : null,
+    };
   }
 
   if (contentType.includes("application/x-www-form-urlencoded")) {
-    const text = await request.text();
-    return new URLSearchParams(text).get("email");
+    const fields = new URLSearchParams(await request.text());
+    return { email: fields.get("email"), website: fields.get("website") };
   }
 
   return null;
@@ -141,9 +150,20 @@ export function registerSubscribeRoute(app: Hono, options: SubscribeRouteOptions
       },
     }),
     async (c) => {
-      const rawEmail = await readEmailField(c.req.raw).catch(() => null);
+      const fields = await readSubscribeFields(c.req.raw).catch(() => null);
 
-      const parsed = rawEmail === null ? null : emailSchema.safeParse(rawEmail);
+      if (!fields) {
+        c.header("cache-control", "no-store");
+        return c.json({ success: false, message: INVALID_EMAIL_MESSAGE }, 400);
+      }
+
+      // Missing catches direct callers using the old payload; filled catches form bots.
+      if (fields.website !== "") {
+        c.header("cache-control", "no-store");
+        return c.json({ success: true }, 200);
+      }
+
+      const parsed = fields.email === null ? null : emailSchema.safeParse(fields.email);
       if (!parsed || !parsed.success) {
         c.header("cache-control", "no-store");
         return c.json({ success: false, message: INVALID_EMAIL_MESSAGE }, 400);

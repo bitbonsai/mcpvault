@@ -73,6 +73,7 @@ describe("GET / (HTML)", () => {
   test("newsletter form degrades to a real POST with no JavaScript", async () => {
     const body = await (await app.request("/")).text();
     expect(body).toContain('method="post" action="/api/subscribe"');
+    expect(body).toContain('name="website"');
   });
 });
 
@@ -93,6 +94,7 @@ describe("GET / (Alpine interactivity, Phase 3)", () => {
     const body = await (await app.request("/")).text();
     expect(body).toContain('x-data="newsletterSignup"');
     expect(body).toContain('x-model="email"');
+    expect(body).toContain('x-model="website"');
     expect(body).toContain('submit()');
   });
 

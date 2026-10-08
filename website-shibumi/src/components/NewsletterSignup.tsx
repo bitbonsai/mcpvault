@@ -3,7 +3,7 @@
  *
  * Submission state (Phase 3) is the `newsletterSignup` Alpine.data()
  * module (`../client/newsletter.ts`): the form names it with `x-data`,
- * binds the email input with `x-model="email"`, intercepts submit with
+ * binds the email and honeypot inputs with `x-model`, intercepts submit with
  * `x-on:submit.prevent="submit()"`, and reflects `status` on the button
  * label/disabled state and the success/error banners. The form still has
  * a real `action`/`method`, and the input keeps `name="email"`, so it
@@ -37,6 +37,10 @@ export function NewsletterSignup() {
 
             <div class="form-panel">
               <form method="post" action="/api/subscribe" data-newsletter-form x-data="newsletterSignup" {...{ "x-on:submit.prevent": "submit()" }}>
+                <div class="form-honeypot" aria-hidden="true">
+                  <label for="newsletter-website">Website</label>
+                  <input id="newsletter-website" type="text" name="website" tabIndex={-1} autocomplete="off" x-model="website" />
+                </div>
                 <label for="newsletter-email">Email address</label>
                 <div class="form-row">
                   <input id="newsletter-email" type="email" name="email" placeholder="you@vaults.dev" required x-model="email" />
