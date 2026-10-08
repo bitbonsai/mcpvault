@@ -18,6 +18,7 @@ describe("newsletterSignup()", () => {
   test("starts idle with an empty email", () => {
     const data = newsletterSignup(fakeFetch({ ok: true }));
     expect(data.email).toBe("");
+    expect(data.website).toBe("");
     expect(data.status).toBe("idle");
   });
 
@@ -44,7 +45,7 @@ describe("newsletterSignup()", () => {
     data.email = "reader@example.com";
     await data.submit();
 
-    expect(requestBody).toEqual({ email: "reader@example.com" });
+    expect(requestBody).toEqual({ email: "reader@example.com", website: "" });
     expect(data.status).toBe("success");
     expect(data.email).toBe("");
   });
