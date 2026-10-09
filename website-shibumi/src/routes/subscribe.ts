@@ -12,6 +12,9 @@
  * - the welcome email is awaited (tracked), never an untracked
  *   fire-and-forget promise, and carries a deterministic per-email
  *   `Idempotency-Key` so a retried request cannot double-send it;
+ * - Cloudflare Turnstile is verified server-side before any Resend call;
+ * - security decisions use structured `[newsletter-security]` logs without
+ *   email addresses or tokens;
  * - the request body is capped before it is ever parsed.
  *
  * The contact-creation step is the source of truth for "did the signup
@@ -27,7 +30,8 @@
  * POST carries no ambient credentials and gains an attacker nothing beyond
  * what a direct anonymous POST already allows: subscribing an email
  * address, which the recipient can self-service unsubscribe. Abuse is
- * bounded by the honeypot below, the 4 KB body cap, and edge rate limiting.
+ * bounded by server-verified Turnstile, the honeypot, the 4 KB body cap,
+ * and edge rate limiting.
  *
  * Rate limiting (documented decision): the container is stateless, so any
  * in-memory limiter resets on every restart and is best-effort at most.
@@ -55,6 +59,23 @@ export interface SubscribeResendClient {
   };
 }
 
+export interface TurnstileVerification {
+  success: boolean;
+  hostname?: string;
+  action?: string;
+  errorCodes?: string[];
+}
+
+export interface NewsletterSecurityEvent {
+  ts: string;
+  outcome: "accepted" | "blocked" | "error" | "passed";
+  reason: string;
+  ip: string;
+  country: string;
+  ray: string;
+  errorCodes?: string[];
+}
+
 export interface SubscribeRouteOptions {
   /** Overrides environment lookup; used to inject a fake client in tests. */
   resendClient?: SubscribeResendClient;
@@ -62,6 +83,10 @@ export interface SubscribeRouteOptions {
   env?: Record<string, string | undefined>;
   /** Constructs the real client from an API key; overridable for tests that want to assert on construction. */
   createResendClient?: (apiKey: string) => SubscribeResendClient;
+  /** Verifies a Turnstile token; overridable so tests never call Cloudflare. */
+  verifyTurnstile?: (secret: string, token: string, remoteIp: string) => Promise<TurnstileVerification>;
+  /** Receives structured security events; defaults to prefixed JSON on stdout. */
+  securityLogger?: (event: NewsletterSecurityEvent) => void;
   /** Absolute path to the welcome email HTML template; defaults to `src/emails/welcome.html`. */
   welcomeTemplatePath?: string;
 }
@@ -71,6 +96,7 @@ export interface SubscribeRouteOptions {
 const MAX_BODY_BYTES = 4 * 1024;
 
 const INVALID_EMAIL_MESSAGE = "Enter a valid email address.";
+const VERIFICATION_FAILED_MESSAGE = "Complete verification and try again.";
 const SUBSCRIBE_FAILED_MESSAGE = "Unable to save subscription.";
 
 const emailSchema = z.string().trim().toLowerCase().pipe(z.email());
@@ -91,9 +117,41 @@ async function defaultCreateResendClient(apiKey: string): Promise<SubscribeResen
   return new Resend(apiKey);
 }
 
+async function defaultVerifyTurnstile(secret: string, token: string, remoteIp: string): Promise<TurnstileVerification> {
+  const body = new URLSearchParams({ secret, response: token });
+  if (remoteIp) body.set("remoteip", remoteIp);
+
+  const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+    method: "POST",
+    body,
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (!response.ok) throw new Error(`Turnstile siteverify returned HTTP ${response.status}`);
+
+  const result = (await response.json()) as {
+    success?: unknown;
+    hostname?: unknown;
+    action?: unknown;
+    "error-codes"?: unknown;
+  };
+  return {
+    success: result.success === true,
+    hostname: typeof result.hostname === "string" ? result.hostname : undefined,
+    action: typeof result.action === "string" ? result.action : undefined,
+    errorCodes: Array.isArray(result["error-codes"])
+      ? result["error-codes"].filter((value): value is string => typeof value === "string")
+      : undefined,
+  };
+}
+
+function defaultSecurityLogger(event: NewsletterSecurityEvent): void {
+  if (process.env.NODE_ENV !== "test") console.log(`[newsletter-security] ${JSON.stringify(event)}`);
+}
+
 interface SubscribeFields {
   email: string | null;
   website: string | null;
+  turnstileToken: string | null;
 }
 
 /** Extracts form fields from JSON or form-urlencoded bodies; anything else yields null. */
@@ -103,16 +161,21 @@ async function readSubscribeFields(request: Request): Promise<SubscribeFields | 
   if (contentType.includes("application/json")) {
     const parsed: unknown = await request.json().catch(() => null);
     if (!parsed || typeof parsed !== "object") return null;
-    const { email, website } = parsed as { email?: unknown; website?: unknown };
+    const { email, website, turnstileToken } = parsed as { email?: unknown; website?: unknown; turnstileToken?: unknown };
     return {
       email: typeof email === "string" ? email : null,
       website: typeof website === "string" ? website : null,
+      turnstileToken: typeof turnstileToken === "string" ? turnstileToken : null,
     };
   }
 
   if (contentType.includes("application/x-www-form-urlencoded")) {
     const fields = new URLSearchParams(await request.text());
-    return { email: fields.get("email"), website: fields.get("website") };
+    return {
+      email: fields.get("email"),
+      website: fields.get("website"),
+      turnstileToken: fields.get("cf-turnstile-response"),
+    };
   }
 
   return null;
@@ -139,6 +202,8 @@ export function registerSubscribeRoute(app: Hono, options: SubscribeRouteOptions
   const env = options.env ?? process.env;
   const welcomeTemplatePath =
     options.welcomeTemplatePath ?? new URL("../emails/welcome.html", import.meta.url).pathname;
+  const verifyTurnstile = options.verifyTurnstile ?? defaultVerifyTurnstile;
+  const securityLogger = options.securityLogger ?? defaultSecurityLogger;
 
   app.post(
     "/api/subscribe",
@@ -150,25 +215,70 @@ export function registerSubscribeRoute(app: Hono, options: SubscribeRouteOptions
       },
     }),
     async (c) => {
+      const logSecurity = (outcome: NewsletterSecurityEvent["outcome"], reason: string, errorCodes?: string[]) =>
+        securityLogger({
+          ts: new Date().toISOString(),
+          outcome,
+          reason,
+          ip: c.req.header("cf-connecting-ip") ?? "",
+          country: c.req.header("cf-ipcountry") ?? "",
+          ray: c.req.header("cf-ray") ?? "",
+          ...(errorCodes?.length ? { errorCodes } : {}),
+        });
       const fields = await readSubscribeFields(c.req.raw).catch(() => null);
 
       if (!fields) {
+        logSecurity("blocked", "invalid-body");
         c.header("cache-control", "no-store");
         return c.json({ success: false, message: INVALID_EMAIL_MESSAGE }, 400);
       }
 
       // Missing catches direct callers using the old payload; filled catches form bots.
       if (fields.website !== "") {
+        logSecurity("blocked", "honeypot");
         c.header("cache-control", "no-store");
         return c.json({ success: true }, 200);
       }
 
       const parsed = fields.email === null ? null : emailSchema.safeParse(fields.email);
       if (!parsed || !parsed.success) {
+        logSecurity("blocked", "invalid-email");
         c.header("cache-control", "no-store");
         return c.json({ success: false, message: INVALID_EMAIL_MESSAGE }, 400);
       }
 
+      const token = fields.turnstileToken?.trim() ?? "";
+      if (!token) {
+        logSecurity("blocked", "turnstile-missing");
+        c.header("cache-control", "no-store");
+        return c.json({ success: false, message: VERIFICATION_FAILED_MESSAGE }, 400);
+      }
+
+      let verification: TurnstileVerification;
+      try {
+        const secret = env.TURNSTILE_SECRET_KEY;
+        if (!secret) throw new Error("Missing Turnstile configuration (TURNSTILE_SECRET_KEY).");
+        verification = await verifyTurnstile(secret, token, c.req.header("cf-connecting-ip") ?? "");
+      } catch (error) {
+        logSecurity("error", "turnstile-service-error");
+        console.error("[newsletter] Turnstile verification failed", error);
+        c.header("cache-control", "no-store");
+        return c.json({ success: false, message: VERIFICATION_FAILED_MESSAGE }, 503);
+      }
+
+      const expectedHostname = new URL(c.req.url).hostname;
+      if (!verification.success || verification.hostname !== expectedHostname || verification.action !== "newsletter") {
+        const reason = !verification.success
+          ? "turnstile-rejected"
+          : verification.hostname !== expectedHostname
+            ? "turnstile-hostname-mismatch"
+            : "turnstile-action-mismatch";
+        logSecurity("blocked", reason, verification.errorCodes);
+        c.header("cache-control", "no-store");
+        return c.json({ success: false, message: VERIFICATION_FAILED_MESSAGE }, 400);
+      }
+
+      logSecurity("passed", "turnstile");
       const email = parsed.data;
 
       try {
@@ -178,6 +288,7 @@ export function registerSubscribeRoute(app: Hono, options: SubscribeRouteOptions
         const { error: contactError } = await client.contacts.create({ audienceId, email });
 
         if (contactError) {
+          logSecurity("error", "resend-contact");
           console.error("[newsletter] Resend contact error:", contactError.message);
           c.header("cache-control", "no-store");
           return c.json({ success: false, message: SUBSCRIBE_FAILED_MESSAGE }, 500);
@@ -200,12 +311,15 @@ export function registerSubscribeRoute(app: Hono, options: SubscribeRouteOptions
         if (sendError) {
           // Contact is already saved -- log the delivery failure but don't
           // fail the signup over it, same as the production behavior this replaces.
+          logSecurity("error", "resend-welcome");
           console.error("[newsletter] welcome email error:", sendError.message);
         }
 
+        logSecurity("accepted", "subscribed");
         c.header("cache-control", "no-store");
         return c.json({ success: true }, 200);
       } catch (err) {
+        logSecurity("error", "subscription");
         console.error("[newsletter] subscription failed", err);
         c.header("cache-control", "no-store");
         return c.json({ success: false, message: SUBSCRIBE_FAILED_MESSAGE }, 500);

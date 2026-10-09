@@ -5,15 +5,18 @@
  * module (`../client/newsletter.ts`): the form names it with `x-data`,
  * binds the email and honeypot inputs with `x-model`, intercepts submit with
  * `x-on:submit.prevent="submit()"`, and reflects `status` on the button
- * label/disabled state and the success/error banners. The form still has
- * a real `action`/`method`, and the input keeps `name="email"`, so it
- * degrades to a normal (if unstyled-response) POST with no JavaScript,
- * rather than doing nothing on submit -- see `newsletter.ts` for why the
- * banners bind `hidden` directly instead of a `.hidden` class.
+ * label/disabled state and the success/error banners. The form keeps real
+ * `action`/`method` semantics, but Turnstile verification requires JavaScript.
+ * See `newsletter.ts` for why the banners bind `hidden` directly instead of
+ * a `.hidden` class.
  */
 const HIGHLIGHTS = ["Release notes", "New client configuration guides", "Obsidian workflow examples"];
 
-export function NewsletterSignup() {
+export interface NewsletterSignupProps {
+  turnstileSiteKey?: string;
+}
+
+export function NewsletterSignup({ turnstileSiteKey }: NewsletterSignupProps) {
   return (
     <section data-component="newsletter-signup">
       <div class="newsletter-inner">
@@ -41,6 +44,15 @@ export function NewsletterSignup() {
                   <label for="newsletter-website">Website</label>
                   <input id="newsletter-website" type="text" name="website" tabIndex={-1} autocomplete="off" x-model="website" />
                 </div>
+                {turnstileSiteKey ? (
+                  <div
+                    class="cf-turnstile"
+                    data-sitekey={turnstileSiteKey}
+                    data-action="newsletter"
+                    data-appearance="interaction-only"
+                    data-theme="dark"
+                  ></div>
+                ) : null}
                 <label for="newsletter-email">Email address</label>
                 <div class="form-row">
                   <input id="newsletter-email" type="email" name="email" placeholder="you@vaults.dev" required x-model="email" />
@@ -66,6 +78,7 @@ export function NewsletterSignup() {
           </div>
         </div>
       </div>
+      {turnstileSiteKey ? <script async defer src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script> : null}
     </section>
   );
 }

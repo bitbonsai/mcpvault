@@ -21,6 +21,8 @@
  *
  * Third-party origins:
  * - script-src  https://cdn.counter.dev       Counter.dev analytics script
+ * - script-src  https://challenges.cloudflare.com  Turnstile widget
+ * - frame-src   https://challenges.cloudflare.com  Turnstile challenge frame
  * - connect-src https://t.counter.dev         Counter.dev beacon/fetch target
  * - style-src   https://fonts.googleapis.com  Google Fonts stylesheet
  * - font-src    https://fonts.gstatic.com     Google Fonts font files
@@ -99,6 +101,7 @@ export const contentSecurityPolicy = {
     scriptHash(FONT_LOADER_SCRIPT),
     scriptHash(structuredDataJson(packageVersion)),
     "https://cdn.counter.dev",
+    "https://challenges.cloudflare.com",
   ],
   styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
   styleSrcElem: ["'self'", "https://fonts.googleapis.com"],
@@ -107,6 +110,7 @@ export const contentSecurityPolicy = {
   fontSrc: ["'self'", "https://fonts.gstatic.com"],
   mediaSrc: ["'self'"],
   connectSrc: ["'self'", "https://t.counter.dev"],
+  frameSrc: ["https://challenges.cloudflare.com"],
   objectSrc: ["'none'"],
   baseUri: ["'self'"],
   formAction: ["'self'"],

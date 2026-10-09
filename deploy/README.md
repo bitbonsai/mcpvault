@@ -54,7 +54,7 @@ shibumi-server add <domain> \
   with `podman-compose config` (the standalone frontend has historically been
   less complete about `cap_drop`/`security_opt`).
 
-## Resend secrets
+## Newsletter secrets
 
 Not committed, not baked into the image. Create before the first deploy:
 
@@ -65,11 +65,24 @@ install -m 600 /dev/null \
 # then edit in place:
 #   RESEND_API_KEY=...
 #   RESEND_AUDIENCE_ID=...
+#   TURNSTILE_SITE_KEY=...
+#   TURNSTILE_SECRET_KEY=...
 ```
+
+Configure the Turnstile widget for `mcpvault.org` in Managed mode. The form
+uses interaction-only appearance and the server requires hostname
+`mcpvault.org` plus action `newsletter` before contacting Resend.
 
 `compose.yaml` marks this `env_file` as `required: false`: a missing file only
 breaks `/api/subscribe` and `/api/unsubscribe`, the rest of the site starts.
 Create it anyway.
+
+Newsletter security decisions are JSON logs with a dedicated prefix and no
+email addresses or Turnstile tokens:
+
+```sh
+ssh alpha 'podman logs --since 24h mcpvault-org_web_1 2>&1 | grep "\[newsletter-security\]"'
+```
 
 ## Caddyfile
 

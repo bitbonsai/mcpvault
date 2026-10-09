@@ -37,6 +37,8 @@ export interface AppOptions {
   unsubscribe?: UnsubscribeRouteOptions;
   /** Overrides for `POST /api/subscribe`'s Resend client/env/welcome template; used in tests. */
   subscribe?: SubscribeRouteOptions;
+  /** Public Cloudflare Turnstile site key rendered on the newsletter form. */
+  turnstileSiteKey?: string;
   /** Overrides for `GET /api/downloads.json`'s fetchImpl/timeouts/cache; used in tests. */
   downloads?: DownloadsRouteOptions;
 }
@@ -92,6 +94,7 @@ export function createApp(options: AppOptions = {}): Hono {
   const stylesDir = resolve(options.stylesDir ?? join(import.meta.dir, "styles"));
   const clientDir = options.clientDir ?? join(import.meta.dir, "client");
   const siteUrl = options.siteUrl ?? SITE_URL;
+  const turnstileSiteKey = options.turnstileSiteKey ?? process.env.TURNSTILE_SITE_KEY ?? "";
   const app = new Hono();
 
   app.use(requestLogger());
@@ -141,7 +144,7 @@ export function createApp(options: AppOptions = {}): Hono {
 
   // Home page (Phase 2, group 2). Registered before generic static serving
   // so "/" resolves to the page, not a directory-index lookup.
-  registerHomeRoute(app, publicDir);
+  registerHomeRoute(app, publicDir, turnstileSiteKey);
 
   // Features page (Phase 2, group 3).
   registerFeaturesRoute(app, publicDir);

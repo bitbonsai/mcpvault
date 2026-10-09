@@ -13,7 +13,7 @@ import { HomePage } from "../pages/Home";
 
 const CACHE_CONTROL = "public, max-age=0, must-revalidate";
 
-export function registerHomeRoute(app: Hono, publicDir: string): void {
+export function registerHomeRoute(app: Hono, publicDir: string, turnstileSiteKey = ""): void {
   app.get("/", async (c) => {
     if (prefersMarkdown(c.req.header("accept"))) {
       const file = Bun.file(join(publicDir, "index.md"));
@@ -28,7 +28,7 @@ export function registerHomeRoute(app: Hono, publicDir: string): void {
       }
     }
 
-    return c.html(<HomePage currentPath={c.req.path} version={packageVersion} />, 200, {
+    return c.html(<HomePage currentPath={c.req.path} version={packageVersion} turnstileSiteKey={turnstileSiteKey} />, 200, {
       "cache-control": CACHE_CONTROL,
     });
   });
