@@ -16,7 +16,7 @@ MCPVault reads, searches, and edits local vault files. Obsidian can stay closed,
 
 ## Recent Updates
 
-- **v0.16.0 (August 2026):** Moved to **MCP v2**, the official SDK for the 2026-07-28 specification. One process accepts both protocol generations, with no material slowdown in [our benchmarks](https://mcpvault.org/benchmarks.md).
+- **v0.16.0 (August 2026):** Moved to **MCP v2**, the official SDK for the 2026-07-28 specification. One process accepts both protocol generations, with no material slowdown in [our benchmarks](https://mcpvault.org/benchmarks.md). Maintenance: transitive `js-yaml` now uses 3.15.2, resolving [GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh).
 - **v0.15.0 (August 2026):** Added `--read-only` mode, which exposes read tools only and rejects all vault mutations. ([#112](https://github.com/bitbonsai/mcpvault/issues/112), thanks @vdhome-dev)
 - **v0.14.1 (August 2026):** Security: dotfiles and hidden directories are now denied at any vault depth, closing an extension-filter bypass. ([#115](https://github.com/bitbonsai/mcpvault/pull/115), thanks @sadegh)
 - **v0.14.0 (August 2026):** Added `get_note_outline` and `read_note_lines` for navigating and reading targeted sections of large notes without loading the full file. ([#146](https://github.com/bitbonsai/mcpvault/pull/146), thanks @kartik7704)
