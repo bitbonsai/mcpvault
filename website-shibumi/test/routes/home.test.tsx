@@ -18,7 +18,7 @@ let app: ReturnType<typeof createApp>;
 beforeAll(async () => {
   publicDir = await mkdtemp(join(tmpdir(), "shibumi-home-test-"));
   await writeFile(join(publicDir, "index.md"), "# MCPVault\n\nMarkdown counterpart fixture.\n");
-  app = createApp({ publicDir });
+  app = createApp({ publicDir, turnstileSiteKey: "test-site-key" });
 });
 
 afterAll(async () => {
@@ -70,10 +70,14 @@ describe("GET / (HTML)", () => {
     expect(body).toContain('action="/api/subscribe"');
   });
 
-  test("newsletter form degrades to a real POST with no JavaScript", async () => {
+  test("newsletter form renders Turnstile with standard form semantics", async () => {
     const body = await (await app.request("/")).text();
     expect(body).toContain('method="post" action="/api/subscribe"');
     expect(body).toContain('name="website"');
+    expect(body).toContain('data-sitekey="test-site-key"');
+    expect(body).toContain('data-action="newsletter"');
+    expect(body).toContain('data-appearance="interaction-only"');
+    expect(body).toContain('src="https://challenges.cloudflare.com/turnstile/v0/api.js"');
   });
 });
 
@@ -98,7 +102,7 @@ describe("GET / (Alpine interactivity, Phase 3)", () => {
     expect(body).toContain('submit()');
   });
 
-  test("still keeps the no-JS form action/method for the newsletter form", async () => {
+  test("keeps the native form action/method for the newsletter form", async () => {
     const body = await (await app.request("/")).text();
     expect(body).toContain('method="post" action="/api/subscribe"');
   });

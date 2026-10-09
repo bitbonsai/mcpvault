@@ -22,16 +22,21 @@
  * same reasoning as `nav.ts`'s mobile menu panel: nothing else ever sets
  * that attribute, so there's no static class to lose a fight against.
  *
- * The form keeps its real `method="post" action="/api/subscribe"`, so a
- * no-JS visitor still gets a normal (if unstyled-response) POST; this
- * module only takes over when JavaScript actually runs.
+ * The form keeps its real `method="post" action="/api/subscribe"`, while
+ * Turnstile verification requires JavaScript before either submission path
+ * can reach Resend.
  */
 export type NewsletterStatus = "idle" | "submitting" | "success" | "error";
+
+interface NewsletterRoot {
+  querySelector(selector: string): HTMLInputElement | null;
+}
 
 export interface NewsletterSignupData {
   email: string;
   website: string;
   status: NewsletterStatus;
+  $root?: NewsletterRoot;
   submit(this: NewsletterSignupData): Promise<void>;
 }
 
@@ -47,7 +52,8 @@ export function newsletterSignup(fetchImpl: typeof fetch = fetch): NewsletterSig
     status: "idle",
     async submit() {
       const email = this.email.trim();
-      if (!email) {
+      const turnstileToken = this.$root?.querySelector('[name="cf-turnstile-response"]')?.value.trim() ?? "";
+      if (!email || !turnstileToken) {
         this.status = "error";
         return;
       }
@@ -58,7 +64,7 @@ export function newsletterSignup(fetchImpl: typeof fetch = fetch): NewsletterSig
         const res = await fetchImpl("/api/subscribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, website: this.website }),
+          body: JSON.stringify({ email, website: this.website, turnstileToken }),
         });
 
         if (!res.ok) throw new Error(`subscribe request failed with status ${res.status}`);
@@ -71,6 +77,8 @@ export function newsletterSignup(fetchImpl: typeof fetch = fetch): NewsletterSig
         this.website = "";
       } catch {
         this.status = "error";
+      } finally {
+        (globalThis as typeof globalThis & { turnstile?: { reset(): void } }).turnstile?.reset();
       }
     },
   };

@@ -14,6 +14,11 @@ function fakeFetch(response: { ok: boolean; status?: number; json?: () => Promis
   })) as unknown as typeof fetch;
 }
 
+function withTurnstileToken(data: ReturnType<typeof newsletterSignup>) {
+  data.$root = { querySelector: () => ({ value: "test-token" }) as HTMLInputElement };
+  return data;
+}
+
 describe("newsletterSignup()", () => {
   test("starts idle with an empty email", () => {
     const data = newsletterSignup(fakeFetch({ ok: true }));
@@ -41,33 +46,45 @@ describe("newsletterSignup()", () => {
       return { ok: true, status: 200, json: async () => ({ success: true }) } as unknown as Response;
     }) as unknown as typeof fetch;
 
-    const data = newsletterSignup(fetchImpl);
+    const data = withTurnstileToken(newsletterSignup(fetchImpl));
     data.email = "reader@example.com";
     await data.submit();
 
-    expect(requestBody).toEqual({ email: "reader@example.com", website: "" });
+    expect(requestBody).toEqual({ email: "reader@example.com", website: "", turnstileToken: "test-token" });
     expect(data.status).toBe("success");
     expect(data.email).toBe("");
   });
 
+  test("submit() rejects a missing Turnstile token without calling fetch", async () => {
+    let called = false;
+    const data = newsletterSignup((async () => {
+      called = true;
+      return { ok: true } as Response;
+    }) as unknown as typeof fetch);
+    data.email = "reader@example.com";
+    await data.submit();
+    expect(called).toBe(false);
+    expect(data.status).toBe("error");
+  });
+
   test("submit() sets status to error on a non-ok response", async () => {
-    const data = newsletterSignup(fakeFetch({ ok: false, status: 500 }));
+    const data = withTurnstileToken(newsletterSignup(fakeFetch({ ok: false, status: 500 })));
     data.email = "reader@example.com";
     await data.submit();
     expect(data.status).toBe("error");
   });
 
   test("submit() sets status to error when the response body lacks success:true", async () => {
-    const data = newsletterSignup(fakeFetch({ ok: true, json: async () => ({ success: false }) }));
+    const data = withTurnstileToken(newsletterSignup(fakeFetch({ ok: true, json: async () => ({ success: false }) })));
     data.email = "reader@example.com";
     await data.submit();
     expect(data.status).toBe("error");
   });
 
   test("submit() sets status to error when fetch itself rejects", async () => {
-    const data = newsletterSignup((async () => {
+    const data = withTurnstileToken(newsletterSignup((async () => {
       throw new Error("network down");
-    }) as unknown as typeof fetch);
+    }) as unknown as typeof fetch));
     data.email = "reader@example.com";
     await data.submit();
     expect(data.status).toBe("error");
@@ -78,7 +95,7 @@ describe("newsletterSignup()", () => {
     const pending = new Promise<Response>((resolve) => {
       resolveFetch = () => resolve({ ok: true, status: 200, json: async () => ({ success: true }) } as unknown as Response);
     });
-    const data = newsletterSignup((async () => pending) as unknown as typeof fetch);
+    const data = withTurnstileToken(newsletterSignup((async () => pending) as unknown as typeof fetch));
     data.email = "reader@example.com";
     const submitPromise = data.submit();
     expect(data.status).toBe("submitting");

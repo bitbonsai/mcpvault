@@ -57,14 +57,15 @@ describe("Content-Security-Policy header", () => {
     expect(missing.headers.get("content-security-policy")).toContain("default-src 'self'");
   });
 
-  test("script-src allows only self, the counter.dev origin, and hashed inline scripts", async () => {
+  test("script-src allows only self, audited third parties, and hashed inline scripts", async () => {
     const scriptSrc = directive(await cspFor("/"), "script-src");
     const sources = scriptSrc.split(/\s+/).slice(1);
     for (const source of sources) {
-      expect(source).toMatch(/^('self'|'sha256-[A-Za-z0-9+/=]+'|https:\/\/cdn\.counter\.dev)$/);
+      expect(source).toMatch(/^('self'|'sha256-[A-Za-z0-9+/=]+'|https:\/\/(cdn\.counter\.dev|challenges\.cloudflare\.com))$/);
     }
     expect(sources).toContain("'self'");
     expect(sources).toContain("https://cdn.counter.dev");
+    expect(sources).toContain("https://challenges.cloudflare.com");
   });
 
   test("every inline script in the rendered HTML is covered by a script-src hash", async () => {
@@ -97,6 +98,7 @@ describe("Content-Security-Policy header", () => {
     expect(directive(header, "img-src")).toBe("img-src 'self' data: https://img.shields.io");
     expect(directive(header, "media-src")).toBe("media-src 'self'");
     expect(directive(header, "connect-src")).toBe("connect-src 'self' https://t.counter.dev");
+    expect(directive(header, "frame-src")).toBe("frame-src https://challenges.cloudflare.com");
     expect(directive(header, "object-src")).toBe("object-src 'none'");
     expect(directive(header, "base-uri")).toBe("base-uri 'self'");
     expect(directive(header, "form-action")).toBe("form-action 'self'");

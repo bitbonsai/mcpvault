@@ -22,9 +22,10 @@ import { Layout } from "../layouts/Layout";
 export interface HomePageProps {
   currentPath: string;
   version: string;
+  turnstileSiteKey?: string;
 }
 
-export function HomePage({ currentPath, version }: HomePageProps) {
+export function HomePage({ currentPath, version, turnstileSiteKey }: HomePageProps) {
   return (
     <Layout page="home" pageStylesheet="/styles/home.css" clientScript="/client/alpine.js" version={version}>
       <Nav currentPath={currentPath} version={version} />
@@ -33,7 +34,7 @@ export function HomePage({ currentPath, version }: HomePageProps) {
         <SpecPreviewCallout />
         <Hero version={version} />
         <UpdateCallout />
-        <NewsletterSignup />
+        <NewsletterSignup turnstileSiteKey={turnstileSiteKey} />
         <Footer />
       </main>
     </Layout>
