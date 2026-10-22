@@ -109,6 +109,16 @@ Add `--read-only` after the vault path to expose only read tools. Mutating tools
 
 The CLI also accepts `--read-only true` and `--read-only=true` for configuration systems that require explicit boolean values. Omit the option, or set it to `false`, for normal read/write access.
 
+### Optional default exclusions
+
+Repeat `--exclude <subtree>` to hide vault-relative folders from search and directory listings in every session. Per-call `excludePaths` add to these defaults. Direct read and write tools remain available for excluded paths.
+
+```json
+"args": ["@bitbonsai/mcpvault@latest", "/path/to/your/vault", "--exclude", "Archive", "--exclude", "Snapshots/Old"]
+```
+
+MCPVault does not read Obsidian's `.obsidian/app.json`; exclusions stay explicit in the server configuration.
+
 Supported note file types: `.md`, `.markdown`, `.txt`, `.base`, `.canvas`.
 
 <details>

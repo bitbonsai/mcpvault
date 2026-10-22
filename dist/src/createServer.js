@@ -4,7 +4,7 @@ import { FrontmatterHandler, parseFrontmatter } from "./frontmatter.js";
 import { PathFilter } from "./pathfilter.js";
 import { SearchService } from "./search.js";
 import { handleWikiLinkTool } from "./wikilink/index.js";
-import { resolve } from "path";
+import { posix, resolve } from "path";
 const MUTATING_TOOLS = new Set([
     "write_note",
     "patch_note",
@@ -14,8 +14,29 @@ const MUTATING_TOOLS = new Set([
     "update_frontmatter",
     "manage_tags",
 ]);
+function normalizeSubtree(path) {
+    let relativePath = path.trim().replace(/\\/g, "/");
+    while (relativePath.startsWith("/"))
+        relativePath = relativePath.slice(1);
+    const normalizedPath = posix.normalize(relativePath);
+    if (normalizedPath === ".")
+        return "";
+    return normalizedPath.endsWith("/") ? normalizedPath.slice(0, -1) : normalizedPath;
+}
+function mergeExcludePaths(defaults, requested) {
+    const provided = Array.isArray(requested) ? requested : [];
+    return [...new Set([...defaults, ...provided]
+            .filter((path) => typeof path === "string")
+            .map(normalizeSubtree)
+            .filter(Boolean))];
+}
+function isExcluded(path, excludePaths) {
+    const normalizedPath = normalizeSubtree(path);
+    return excludePaths.some((excluded) => normalizedPath === excluded || normalizedPath.startsWith(`${excluded}/`));
+}
 export function createServer(vaultPath, options = {}) {
-    const { name = "mcpvault", version = "0.0.0", pathFilter = new PathFilter(), frontmatterHandler = new FrontmatterHandler(), readOnly = false, } = options;
+    const { name = "mcpvault", version = "0.0.0", pathFilter = new PathFilter(), frontmatterHandler = new FrontmatterHandler(), readOnly = false, excludePaths = [], } = options;
+    const defaultExcludePaths = mergeExcludePaths([], excludePaths);
     const resolvedVaultPath = resolve(vaultPath);
     const fileSystem = new FileSystemService(resolvedVaultPath, pathFilter, frontmatterHandler);
     const searchService = new SearchService(resolvedVaultPath, pathFilter);
@@ -317,10 +338,17 @@ export function createServer(vaultPath, options = {}) {
                     };
                 }
                 case "list_directory": {
-                    const listing = await fileSystem.listDirectory(trimmedArgs.path || '');
+                    const requestedPath = normalizeSubtree(trimmedArgs.path || "");
+                    if (isExcluded(requestedPath, defaultExcludePaths)) {
+                        throw new Error(`Directory excluded by server configuration: ${requestedPath}`);
+                    }
+                    const listing = await fileSystem.listDirectory(trimmedArgs.path || "");
+                    const prefix = requestedPath ? `${requestedPath}/` : "";
+                    const directories = listing.directories.filter((name) => !isExcluded(`${prefix}${name}`, defaultExcludePaths));
+                    const files = listing.files.filter((name) => !isExcluded(`${prefix}${name}`, defaultExcludePaths));
                     const indent = trimmedArgs.prettyPrint ? 2 : undefined;
                     return {
-                        content: [{ type: "text", text: JSON.stringify({ dirs: listing.directories, files: listing.files }, null, indent) }]
+                        content: [{ type: "text", text: JSON.stringify({ dirs: directories, files }, null, indent) }]
                     };
                 }
                 case "delete_note": {
@@ -342,7 +370,7 @@ export function createServer(vaultPath, options = {}) {
                         searchFrontmatter: trimmedArgs.searchFrontmatter,
                         caseSensitive: trimmedArgs.caseSensitive,
                         pathPrefix: trimmedArgs.pathPrefix,
-                        excludePaths: trimmedArgs.excludePaths
+                        excludePaths: mergeExcludePaths(defaultExcludePaths, trimmedArgs.excludePaths)
                     });
                     const indent = trimmedArgs.prettyPrint ? 2 : undefined;
                     return {
@@ -486,6 +514,9 @@ function trimPaths(args) {
         trimmed.confirmNewPath = trimmed.confirmNewPath.trim();
     if (trimmed.paths && Array.isArray(trimmed.paths)) {
         trimmed.paths = trimmed.paths.map((p) => typeof p === 'string' ? p.trim() : p);
+    }
+    if (trimmed.excludePaths && Array.isArray(trimmed.excludePaths)) {
+        trimmed.excludePaths = trimmed.excludePaths.map((p) => typeof p === 'string' ? p.trim() : p);
     }
     return trimmed;
 }

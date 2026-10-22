@@ -31,7 +31,7 @@ mcpvault v${VERSION}
 Universal AI bridge for Obsidian vaults - connect any MCP-compatible assistant
 
 Usage:
-  npx @bitbonsai/mcpvault [vault-path] [--read-only[=true|false]]
+  npx @bitbonsai/mcpvault [vault-path] [--read-only[=true|false]] [--exclude <subtree>]...
 
 Arguments:
   [vault-path]    Optional path to your Obsidian vault directory
@@ -42,12 +42,15 @@ Options:
   --help, -h      Show this help message
   --read-only     Expose read tools only and reject all vault mutations
                   May be passed alone, with true/false, or as --read-only=true
+  --exclude PATH  Hide a vault-relative subtree from search and directory listings
+                  Repeat for multiple subtrees; direct read/write tools are unaffected
 
 Examples:
   npx @bitbonsai/mcpvault
   npx @bitbonsai/mcpvault ~/Documents/MyVault
   npx @bitbonsai/mcpvault ./Vault
   npx @bitbonsai/mcpvault ./Vault --read-only
+  npx @bitbonsai/mcpvault ./Vault --exclude Archive --exclude "Snapshots/Old"
   npx @bitbonsai/mcpvault /path/to/obsidian/vault
   npx @bitbonsai/mcpvault "/path/with spaces/Obsidian Vault"
 `);
@@ -56,13 +59,13 @@ Examples:
 
 // Remove runtime options before joining trailing args, preserving support for
 // unquoted vault paths with spaces. When omitted, use the current directory.
-const { vaultPathArg, readOnly } = parseCliArgs(cliArgs);
+const { vaultPathArg, readOnly, excludePaths } = parseCliArgs(cliArgs);
 const vaultPath = resolve(vaultPathArg || process.cwd());
 
 // Serve both the legacy handshake-based protocol and MCP 2026-07-28 from the
 // same process. The opening exchange selects the era for this connection.
 const serverHandle = serveStdio(
-  () => createServer(vaultPath, { version: VERSION, readOnly }),
+  () => createServer(vaultPath, { version: VERSION, readOnly, excludePaths }),
   { onerror: (error) => console.error(error) },
 );
 

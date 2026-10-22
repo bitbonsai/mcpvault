@@ -258,6 +258,21 @@ Add `--read-only` after the vault path to expose only read tools. Mutating tools
 
 The CLI also accepts `--read-only true` and `--read-only=true` for configuration systems that require explicit values. Omit the option, or set it to `false`, to keep normal read/write access.
 
+**Default search and listing exclusions:**
+
+Repeat `--exclude <subtree>` to hide vault-relative folders from `search_notes` and `list_directory` in every session. Per-call `excludePaths` add to these defaults. Direct read and write tools remain available for excluded paths.
+
+```json
+"args": [
+  "@bitbonsai/mcpvault@latest",
+  "/Users/yourname/Documents/ResearchVault",
+  "--exclude", "Archive",
+  "--exclude", "Snapshots/Old"
+]
+```
+
+MCPVault does not read Obsidian's `.obsidian/app.json`; exclusions stay explicit in the MCP server configuration.
+
 **Configuration File Locations:**
 
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -981,6 +996,8 @@ Only grant write access to clients and conversations you trust. Use `--read-only
 ## Architecture
 
 - `server.ts` - MCP server entry point
+- `src/cli.ts` - CLI option parsing for vault path, read-only mode, and default exclusions
+- `src/createServer.ts` - MCP tool registration, request routing, and discovery defaults
 - `src/frontmatter.ts` - YAML frontmatter handling with gray-matter
 - `src/filesystem.ts` - File operations with path validation
 - `src/pathfilter.ts` - Directory and file filtering
