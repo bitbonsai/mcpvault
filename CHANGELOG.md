@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.1] - 2026-10-22
+
+### Security
+- Raised the MCP client and server minimum to 2.3.1, picking up fixes for credential forwarding, cross-session message delivery, request validation, and bearer-token audience checks.
+- Refreshed Vitest, Vite, and `source-map-js` to patched releases.
+- Pinned system-trash support to `trash` 9.0.0 because the current 10.x dependency chain installs vulnerable `braces`, which has no patched release. The existing system-trash API and regression test remain unchanged.
+
 ## [0.16.0] - 2026-08-17
 
 ### Changed
