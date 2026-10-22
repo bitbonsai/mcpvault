@@ -28,9 +28,12 @@ const MUTATING_TOOLS = new Set([
 ]);
 
 function normalizeSubtree(path: string): string {
-  const relativePath = path.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+  let relativePath = path.trim().replace(/\\/g, "/");
+  while (relativePath.startsWith("/")) relativePath = relativePath.slice(1);
+
   const normalizedPath = posix.normalize(relativePath);
-  return normalizedPath === "." ? "" : normalizedPath.replace(/\/+$/, "");
+  if (normalizedPath === ".") return "";
+  return normalizedPath.endsWith("/") ? normalizedPath.slice(0, -1) : normalizedPath;
 }
 
 function mergeExcludePaths(defaults: string[], requested: unknown): string[] {

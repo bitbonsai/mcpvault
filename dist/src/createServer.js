@@ -15,9 +15,13 @@ const MUTATING_TOOLS = new Set([
     "manage_tags",
 ]);
 function normalizeSubtree(path) {
-    const relativePath = path.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+    let relativePath = path.trim().replace(/\\/g, "/");
+    while (relativePath.startsWith("/"))
+        relativePath = relativePath.slice(1);
     const normalizedPath = posix.normalize(relativePath);
-    return normalizedPath === "." ? "" : normalizedPath.replace(/\/+$/, "");
+    if (normalizedPath === ".")
+        return "";
+    return normalizedPath.endsWith("/") ? normalizedPath.slice(0, -1) : normalizedPath;
 }
 function mergeExcludePaths(defaults, requested) {
     const provided = Array.isArray(requested) ? requested : [];
