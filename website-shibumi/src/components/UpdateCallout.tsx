@@ -38,6 +38,15 @@ interface Update {
 
 const OLDER_UPDATES: Update[] = [
   {
+    version: "v0.16.1",
+    date: "October 2026",
+    body: (
+      <>
+        Updated MCP SDK and test dependencies to patched releases, and pinned system-trash support to a dependency chain without the current high-severity <code>braces</code> advisory.
+      </>
+    ),
+  },
+  {
     version: "v0.16.0",
     date: "August 2026",
     body: (
@@ -405,7 +414,7 @@ export function UpdateCallout() {
         <div class="callout-body">
           <div class="updates-heading">
             <h3>
-              Recent updates <span class="version-pill">v0.16.1</span>
+              Recent updates <span class="version-pill">v0.17.0</span>
             </h3>
             <button
               type="button"
@@ -431,8 +440,12 @@ export function UpdateCallout() {
           </div>
 
           <p class="latest-update">
-            <span class="entry-version">v0.16.1 (October 2026):</span> Updated MCP SDK and test dependencies to patched releases, and pinned system-trash
-            support to a dependency chain without the current high-severity <code>braces</code> advisory.
+            <span class="entry-version">v0.17.0 (October 2026):</span> Added repeatable <code>--exclude &lt;subtree&gt;</code> defaults for search and directory listings.
+            Per-call exclusions add to those defaults, while direct reads and writes remain available (
+            <a href="https://github.com/bitbonsai/mcpvault/issues/235" target="_blank" rel="noopener noreferrer">
+              #235
+            </a>
+            ).
           </p>
 
           <div id="older-updates" class="older-updates is-collapsed" data-updates-panel x-bind:class="{ 'is-expanded': expanded, 'is-collapsed': !expanded }">

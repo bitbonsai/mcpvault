@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-10-22
+
+### Added
+- Added repeatable `--exclude <subtree>` and `--exclude=<subtree>` CLI options for persistent vault-relative exclusions from `search_notes` and `list_directory` ([#235](https://github.com/bitbonsai/mcpvault/issues/235), [#249](https://github.com/bitbonsai/mcpvault/pull/249)).
+- Per-call `search_notes.excludePaths` values add to configured defaults. Direct read and write tools remain available for excluded paths.
+
 ## [0.16.1] - 2026-10-22
 
 ### Security
