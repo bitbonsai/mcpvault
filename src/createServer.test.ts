@@ -96,8 +96,8 @@ test("custom options are applied", () => {
   expect(server).toBeDefined();
 });
 
-async function connectClient() {
-  const server = createServer(testVaultPath, { version: "1.0.0" });
+async function connectClient(options: Parameters<typeof createServer>[1] = {}) {
+  const server = createServer(testVaultPath, { version: "1.0.0", ...options });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-client", version: "1.0.0" });
   await Promise.all([
@@ -106,6 +106,60 @@ async function connectClient() {
   ]);
   return { server, client };
 }
+
+test("default exclusions hide discovery results without blocking direct reads", async () => {
+  await mkdir(join(testVaultPath, "Archive"), { recursive: true });
+  await mkdir(join(testVaultPath, "Active"), { recursive: true });
+  await writeFile(join(testVaultPath, "Archive/hidden.md"), "# Hidden\n\nshared needle");
+  await writeFile(join(testVaultPath, "Active/visible.md"), "# Visible\n\nshared needle");
+
+  const { server, client } = await connectClient({ excludePaths: [" Archive/ "] });
+  try {
+    const rootListing = await client.callTool({
+      name: "list_directory",
+      arguments: { path: "." },
+    });
+    const listed = JSON.parse((rootListing.content as any)[0].text);
+    expect(listed.dirs).toEqual(["Active"]);
+
+    const excludedListing = await client.callTool({
+      name: "list_directory",
+      arguments: { path: "Active/../Archive" },
+    });
+    expect(excludedListing.isError).toBe(true);
+    expect((excludedListing.content as any)[0].text).toContain("excluded by server configuration");
+
+    const search = await client.callTool({
+      name: "search_notes",
+      arguments: { query: "shared needle" },
+    });
+    expect(JSON.parse((search.content as any)[0].text).map((result: any) => result.p)).toEqual([
+      "Active/visible.md",
+    ]);
+
+    const additionalPerCallExclude = await client.callTool({
+      name: "search_notes",
+      arguments: { query: "shared needle", excludePaths: ["Active"] },
+    });
+    expect(JSON.parse((additionalPerCallExclude.content as any)[0].text)).toEqual([]);
+
+    const directWrite = await client.callTool({
+      name: "write_note",
+      arguments: { path: "Archive/hidden.md", content: "updated hidden content" },
+    });
+    expect(directWrite.isError).toBeFalsy();
+
+    const directRead = await client.callTool({
+      name: "read_note",
+      arguments: { path: "Archive/hidden.md" },
+    });
+    expect(directRead.isError).toBeFalsy();
+    expect((directRead.content as any)[0].text).toContain("updated hidden content");
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
 
 test("wiki_link returns isError on invalid syntax (backslash in parsed)", async () => {
   const { server, client } = await connectClient();

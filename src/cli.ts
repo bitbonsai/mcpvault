@@ -1,6 +1,7 @@
 export interface ParsedCliArgs {
   vaultPathArg: string;
   readOnly: boolean;
+  excludePaths: string[];
 }
 
 /**
@@ -10,6 +11,7 @@ export interface ParsedCliArgs {
  */
 export function parseCliArgs(args: string[]): ParsedCliArgs {
   const pathArgs: string[] = [];
+  const excludePaths: string[] = [];
   let readOnly = false;
 
   for (let index = 0; index < args.length; index += 1) {
@@ -35,11 +37,31 @@ export function parseCliArgs(args: string[]): ParsedCliArgs {
       continue;
     }
 
+    if (arg === "--exclude") {
+      const value = args[index + 1]?.trim();
+      if (!value || value.startsWith("--")) {
+        throw new Error("--exclude requires a subtree path");
+      }
+      excludePaths.push(value);
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--exclude=")) {
+      const value = arg.slice("--exclude=".length).trim();
+      if (!value) {
+        throw new Error("--exclude requires a subtree path");
+      }
+      excludePaths.push(value);
+      continue;
+    }
+
     pathArgs.push(arg);
   }
 
   return {
     vaultPathArg: pathArgs.join(" ").trim(),
     readOnly,
+    excludePaths,
   };
 }

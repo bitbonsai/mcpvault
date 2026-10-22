@@ -6,6 +6,7 @@ describe("parseCliArgs", () => {
     expect(parseCliArgs(["/path/to/vault"])).toEqual({
       vaultPathArg: "/path/to/vault",
       readOnly: false,
+      excludePaths: [],
     });
   });
 
@@ -13,10 +14,12 @@ describe("parseCliArgs", () => {
     expect(parseCliArgs(["/path/to/vault", "--read-only"])).toEqual({
       vaultPathArg: "/path/to/vault",
       readOnly: true,
+      excludePaths: [],
     });
     expect(parseCliArgs(["--read-only", "/path/to/vault"])).toEqual({
       vaultPathArg: "/path/to/vault",
       readOnly: true,
+      excludePaths: [],
     });
   });
 
@@ -31,7 +34,31 @@ describe("parseCliArgs", () => {
     expect(parseCliArgs(["/Users/me/My", "Vault", "--read-only", "true"])).toEqual({
       vaultPathArg: "/Users/me/My Vault",
       readOnly: true,
+      excludePaths: [],
     });
+  });
+
+  test("parses repeatable discovery exclusions without changing the vault path", () => {
+    expect(parseCliArgs([
+      "/Users/me/My",
+      "Vault",
+      "--exclude",
+      "Archive",
+      "--exclude=Snapshots/Old",
+    ])).toEqual({
+      vaultPathArg: "/Users/me/My Vault",
+      readOnly: false,
+      excludePaths: ["Archive", "Snapshots/Old"],
+    });
+  });
+
+  test("rejects exclusions without a subtree path", () => {
+    expect(() => parseCliArgs(["/vault", "--exclude"])).toThrow(
+      "--exclude requires a subtree path",
+    );
+    expect(() => parseCliArgs(["/vault", "--exclude="])).toThrow(
+      "--exclude requires a subtree path",
+    );
   });
 
   test("rejects invalid equals-form boolean values", () => {

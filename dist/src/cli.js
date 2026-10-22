@@ -5,6 +5,7 @@
  */
 export function parseCliArgs(args) {
     const pathArgs = [];
+    const excludePaths = [];
     let readOnly = false;
     for (let index = 0; index < args.length; index += 1) {
         const arg = args[index];
@@ -27,10 +28,28 @@ export function parseCliArgs(args) {
             readOnly = value === "true";
             continue;
         }
+        if (arg === "--exclude") {
+            const value = args[index + 1]?.trim();
+            if (!value || value.startsWith("--")) {
+                throw new Error("--exclude requires a subtree path");
+            }
+            excludePaths.push(value);
+            index += 1;
+            continue;
+        }
+        if (arg.startsWith("--exclude=")) {
+            const value = arg.slice("--exclude=".length).trim();
+            if (!value) {
+                throw new Error("--exclude requires a subtree path");
+            }
+            excludePaths.push(value);
+            continue;
+        }
         pathArgs.push(arg);
     }
     return {
         vaultPathArg: pathArgs.join(" ").trim(),
         readOnly,
+        excludePaths,
     };
 }

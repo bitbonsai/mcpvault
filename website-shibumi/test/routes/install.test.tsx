@@ -59,6 +59,8 @@ describe("GET /install/ (HTML)", () => {
     expect(body).toContain('data-tab="gemini-cli"');
     expect(body).toContain('data-tab="opencode"');
     expect(body).toContain('data-tab="codex"');
+    expect(body).toContain("Default exclusions:");
+    expect(body).toContain("--exclude &lt;subtree&gt;");
   });
 
   test("renders server-side highlighted JSON config samples, not react-syntax-highlighter", async () => {

@@ -482,6 +482,19 @@ export async function Terminal() {
               </div>
 
               <div class="note-card">
+                <p class="note-card-text">
+                  <FolderOpenIcon className="note-card-icon" />
+                  <span>
+                    <strong class="note-card-strong">Default exclusions:</strong> repeat <code class="code-chip code-chip--pill-inline">--exclude &lt;subtree&gt;</code> to hide vault-relative folders from
+                    search and directory listings. Direct read and write tools remain available for those paths.
+                  </span>
+                </p>
+                <code class="code-chip code-chip--block code-chip--example">
+                  "args": ["@bitbonsai/mcpvault@latest", "/path/to/vault", "--exclude", "Archive", "--exclude", "Snapshots/Old"]
+                </code>
+              </div>
+
+              <div class="note-card">
                 <p class="note-card-text note-card-text--small">
                   <FolderOpenIcon className="note-card-icon" />
                   <span>
