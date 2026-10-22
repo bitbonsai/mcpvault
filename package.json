@@ -1,6 +1,6 @@
 {
   "name": "@bitbonsai/mcpvault",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "description": "Universal AI bridge for Obsidian vaults - connect any MCP-compatible assistant",
   "homepage": "https://mcpvault.org",
   "author": "bitbonsai",
@@ -39,18 +39,18 @@
     "ship:update": "bun scripts/ship.ts --update"
   },
   "dependencies": {
-    "@modelcontextprotocol/server": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.3.1",
     "gray-matter": "^4.0.3",
-    "trash": "^10.1.1",
+    "trash": "9.0.0",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@clack/prompts": "^1.7.0",
-    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/client": "^2.3.1",
     "@types/node": "^26.1.2",
     "tsx": "^4.23.9",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.12"
   },
   "engines": {
     "node": ">=20.0.0"
