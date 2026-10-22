@@ -38,16 +38,6 @@ interface Update {
 
 const OLDER_UPDATES: Update[] = [
   {
-    version: "v0.16.0",
-    date: "August 2026",
-    body: (
-      <>
-        Moved to <strong>MCP v2</strong>, the official SDK for the 2026-07-28 specification. One process accepts both protocol generations, with no material
-        slowdown in our <a href="/benchmarks/">benchmarks</a>.
-      </>
-    ),
-  },
-  {
     version: "v0.15.0",
     date: "August 2026",
     body: (
@@ -405,7 +395,7 @@ export function UpdateCallout() {
         <div class="callout-body">
           <div class="updates-heading">
             <h3>
-              Recent updates <span class="version-pill">v0.16.1</span>
+              Recent updates <span class="version-pill">v0.16.0</span>
             </h3>
             <button
               type="button"
@@ -431,8 +421,8 @@ export function UpdateCallout() {
           </div>
 
           <p class="latest-update">
-            <span class="entry-version">v0.16.1 (October 2026):</span> Updated MCP SDK and test dependencies to patched releases, and pinned system-trash
-            support to a dependency chain without the current high-severity <code>braces</code> advisory.
+            <span class="entry-version">v0.16.0 (August 2026):</span> Moved to <strong>MCP v2</strong>, the official SDK for the 2026-07-28 specification. One
+            process accepts both protocol generations, with no material slowdown in our <a href="/benchmarks/">benchmarks</a>.
           </p>
 
           <div id="older-updates" class="older-updates is-collapsed" data-updates-panel x-bind:class="{ 'is-expanded': expanded, 'is-collapsed': !expanded }">
