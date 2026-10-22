@@ -1,9 +1,36 @@
-import { test, expect, beforeEach, afterEach, describe } from "vitest";
+import { test, expect, beforeEach, afterEach, describe, vi } from "vitest";
 import { FileSystemService, classifyWriteError } from "./filesystem.js";
 import { PathFilter } from "./pathfilter.js";
 import { writeFile, readFile, mkdir, mkdtemp, rm, symlink } from "fs/promises";
 import { join, relative } from "path";
 import { tmpdir, homedir } from "os";
+
+// ESM namespace exports are not configurable, so spyOn cannot reach the
+// bindings filesystem.ts already imported. Faults are injected at the
+// node:fs/promises boundary and cleared in each test's finally.
+const fsFaults = vi.hoisted(() => ({
+  readFile: undefined as Error | undefined,
+  writeFile: undefined as Error | undefined,
+}));
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    readFile: (...args: any[]) => {
+      if (fsFaults.readFile) {
+        throw fsFaults.readFile;
+      }
+      return (actual.readFile as any)(...args);
+    },
+    writeFile: (...args: any[]) => {
+      if (fsFaults.writeFile) {
+        throw fsFaults.writeFile;
+      }
+      return (actual.writeFile as any)(...args);
+    },
+  };
+});
 
 let testVaultPath: string;
 let fileSystem: FileSystemService;
@@ -1509,6 +1536,201 @@ test("move note with special chars in both paths", async () => {
 
   const note = await fileSystem.readNote(newPath);
   expect(note.content).toContain("Moving note");
+});
+
+test("move note preserves raw frontmatter when the destination parent is missing", async () => {
+  const oldPath = "A/note.md";
+  const newPath = "B/note.md";
+  const content = "---\ntitle: \"Quoted: Title\"\ntags:\n  - alpha\n  - beta\n---\n\n# Heading\n\nBody with  trailing spaces  \n";
+
+  await mkdir(join(testVaultPath, "A"), { recursive: true });
+  await writeFile(join(testVaultPath, oldPath), content);
+
+  const result = await fileSystem.moveNote({ oldPath, newPath });
+
+  expect(result.success).toBe(true);
+  expect(await readFile(join(testVaultPath, newPath), "utf-8")).toBe(content);
+  await expect(readFile(join(testVaultPath, oldPath))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+test("move note rejects a directory source without creating the destination", async () => {
+  await mkdir(join(testVaultPath, "notes"), { recursive: true });
+  await mkdir(join(testVaultPath, "note.md", "nested"), { recursive: true });
+  await writeFile(join(testVaultPath, "note.md/nested/child.md"), "inside");
+
+  const directory = await fileSystem.moveNote({
+    oldPath: "notes",
+    newPath: "created/out.md"
+  });
+  expect(directory.success).toBe(false);
+  expect(directory.message).toBe("Source path is a directory: notes. Please provide a file path.");
+  expect(await fileSystem.exists("created")).toBe(false);
+
+  const namedLikeNote = await fileSystem.moveNote({
+    oldPath: "note.md",
+    newPath: "created/out.md"
+  });
+  expect(namedLikeNote.success).toBe(false);
+  expect(namedLikeNote.message).toBe("Source path is a directory: note.md. Please provide a file path.");
+  expect(await fileSystem.exists("created")).toBe(false);
+  expect(await readFile(join(testVaultPath, "note.md/nested/child.md"), "utf-8")).toBe("inside");
+});
+
+test("move note rejects directory destinations without suggesting overwrite", async () => {
+  const source = "source-bytes";
+  await writeFile(join(testVaultPath, "source.md"), source);
+  await mkdir(join(testVaultPath, "empty-dir"));
+  await mkdir(join(testVaultPath, "folder.md/nested"), { recursive: true });
+  await writeFile(join(testVaultPath, "folder.md/nested/child.md"), "child-bytes");
+
+  for (const newPath of ["empty-dir", "folder.md"]) {
+    for (const overwrite of [false, true]) {
+      const result = await fileSystem.moveNote({
+        oldPath: "source.md",
+        newPath,
+        overwrite
+      });
+      expect(result.success).toBe(false);
+      expect(result.message).toBe(`Target path is a directory: ${newPath}. Please provide a file path.`);
+      expect(result.message).not.toContain("overwrite");
+    }
+  }
+
+  expect(await readFile(join(testVaultPath, "source.md"), "utf-8")).toBe(source);
+  expect(await fileSystem.listDirectory("empty-dir")).toEqual({ files: [], directories: [] });
+  expect(await readFile(join(testVaultPath, "folder.md/nested/child.md"), "utf-8")).toBe("child-bytes");
+});
+
+test("move note keeps regular-file collision behavior", async () => {
+  await writeFile(join(testVaultPath, "source.md"), "source-bytes");
+  await writeFile(join(testVaultPath, "target.md"), "target-bytes");
+
+  const blocked = await fileSystem.moveNote({
+    oldPath: "source.md",
+    newPath: "target.md",
+    overwrite: false
+  });
+  expect(blocked.success).toBe(false);
+  expect(blocked.message).toBe("Target file already exists: target.md. Use overwrite=true to replace it.");
+  expect(await readFile(join(testVaultPath, "source.md"), "utf-8")).toBe("source-bytes");
+  expect(await readFile(join(testVaultPath, "target.md"), "utf-8")).toBe("target-bytes");
+
+  const replaced = await fileSystem.moveNote({
+    oldPath: "source.md",
+    newPath: "target.md",
+    overwrite: true
+  });
+  expect(replaced.success).toBe(true);
+  expect(await readFile(join(testVaultPath, "target.md"), "utf-8")).toBe("source-bytes");
+  await expect(readFile(join(testVaultPath, "source.md"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+test("move note reports a missing source with the existing message", async () => {
+  const result = await fileSystem.moveNote({
+    oldPath: "missing.md",
+    newPath: "dest/missing.md"
+  });
+
+  expect(result.success).toBe(false);
+  expect(result.message).toBe("Source file not found: missing.md. Use list_directory to see available files.");
+  expect(await fileSystem.exists("dest")).toBe(false);
+});
+
+test("move note classifies EISDIR from read and write without unlinking the source", async () => {
+  const source = "source-bytes";
+  await writeFile(join(testVaultPath, "source.md"), source);
+  const eisdir = Object.assign(new Error("EISDIR: illegal operation on a directory, open"), { code: "EISDIR" });
+
+  fsFaults.readFile = eisdir;
+  try {
+    const result = await fileSystem.moveNote({
+      oldPath: "source.md",
+      newPath: "dest/note.md"
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toBe("Source path is a directory: source.md. Please provide a file path.");
+    expect(result.message).not.toContain("overwrite");
+  } finally {
+    fsFaults.readFile = undefined;
+  }
+  expect(await readFile(join(testVaultPath, "source.md"), "utf-8")).toBe(source);
+  expect(await fileSystem.exists("dest")).toBe(false);
+
+  for (const overwrite of [false, true]) {
+    fsFaults.writeFile = eisdir;
+    try {
+      const result = await fileSystem.moveNote({
+        oldPath: "source.md",
+        newPath: "dest/note.md",
+        overwrite
+      });
+      expect(result.success).toBe(false);
+      expect(result.message).toBe("Target path is a directory: dest/note.md. Please provide a file path.");
+      expect(result.message).not.toContain("overwrite");
+    } finally {
+      fsFaults.writeFile = undefined;
+    }
+  }
+  expect(await readFile(join(testVaultPath, "source.md"), "utf-8")).toBe(source);
+});
+
+test("move note keeps unrelated I/O errors from being classified as directories", async () => {
+  const source = "source-bytes";
+  await writeFile(join(testVaultPath, "source.md"), source);
+  const eio = Object.assign(
+    new Error("directory scan hit a transient input/output error"),
+    { code: "EIO" }
+  );
+  fsFaults.readFile = eio;
+  try {
+    const result = await fileSystem.moveNote({
+      oldPath: "source.md",
+      newPath: "dest/note.md"
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toBe(
+      "Failed to move note: directory scan hit a transient input/output error"
+    );
+    expect(result.message).not.toContain("Please provide a file path");
+  } finally {
+    fsFaults.readFile = undefined;
+  }
+  expect(await readFile(join(testVaultPath, "source.md"), "utf-8")).toBe(source);
+  expect(await fileSystem.exists("dest")).toBe(false);
+});
+
+test("move note rejects restricted paths and traversal before moving files", async () => {
+  await mkdir(join(testVaultPath, ".obsidian"), { recursive: true });
+  await writeFile(join(testVaultPath, ".obsidian/secret.md"), "secret");
+  await writeFile(join(testVaultPath, "visible.md"), "visible");
+
+  const fromObsidian = await fileSystem.moveNote({
+    oldPath: ".obsidian/secret.md",
+    newPath: "stolen.md"
+  });
+  expect(fromObsidian.success).toBe(false);
+  expect(fromObsidian.message).toContain("Access denied: .obsidian/secret.md");
+  expect(await readFile(join(testVaultPath, ".obsidian/secret.md"), "utf-8")).toBe("secret");
+  expect(await fileSystem.exists("stolen.md")).toBe(false);
+
+  const toGit = await fileSystem.moveNote({
+    oldPath: "visible.md",
+    newPath: ".git/visible.md"
+  });
+  expect(toGit.success).toBe(false);
+  expect(toGit.message).toContain("Access denied: .git/visible.md");
+  expect(await readFile(join(testVaultPath, "visible.md"), "utf-8")).toBe("visible");
+
+  await expect(fileSystem.moveNote({
+    oldPath: "../outside.md",
+    newPath: "inside.md"
+  })).rejects.toThrow(/Path traversal not allowed/);
+
+  await expect(fileSystem.moveNote({
+    oldPath: "visible.md",
+    newPath: "../outside.md"
+  })).rejects.toThrow(/Path traversal not allowed/);
+  expect(await readFile(join(testVaultPath, "visible.md"), "utf-8")).toBe("visible");
 });
 
 test("move_file moves binary files without corruption", async () => {

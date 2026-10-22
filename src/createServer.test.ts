@@ -337,3 +337,66 @@ test("read-only mode exposes read tools and rejects every vault mutation", async
     await server.close();
   }
 });
+
+test("failed directory move_note is followed by list, read, and a valid move", async () => {
+  await mkdir(join(testVaultPath, "dir-source"));
+  await mkdir(join(testVaultPath, "dir-target"));
+  await writeFile(join(testVaultPath, "dir-source/nested.md"), "nested");
+  await writeFile(join(testVaultPath, "keep.md"), "---\ntitle: Keep\n---\n\nKeep body\n");
+
+  const { server, client } = await connectClient();
+  try {
+    const sourceMove = await client.callTool({
+      name: "move_note",
+      arguments: { oldPath: "dir-source", newPath: "should-not-exist/out.md" },
+    });
+    expect(sourceMove.isError).toBe(true);
+    const sourceBody = JSON.parse((sourceMove.content as any)[0].text);
+    expect(sourceBody.success).toBe(false);
+    expect(sourceBody.message).toContain("Source path is a directory: dir-source");
+    expect(sourceBody.message).toContain("file path");
+
+    const targetMove = await client.callTool({
+      name: "move_note",
+      arguments: { oldPath: "keep.md", newPath: "dir-target", overwrite: true },
+    });
+    expect(targetMove.isError).toBe(true);
+    const targetBody = JSON.parse((targetMove.content as any)[0].text);
+    expect(targetBody.success).toBe(false);
+    expect(targetBody.message).toContain("Target path is a directory: dir-target");
+    expect(targetBody.message).not.toContain("overwrite");
+
+    const listingResult = await client.callTool({
+      name: "list_directory",
+      arguments: {},
+    });
+    expect(listingResult.isError).toBeFalsy();
+    const listing = JSON.parse((listingResult.content as any)[0].text);
+    expect(listing.files).toContain("keep.md");
+    expect(listing.dirs).toEqual(expect.arrayContaining(["dir-source", "dir-target"]));
+    expect(listing.dirs).not.toContain("should-not-exist");
+
+    const readResult = await client.callTool({
+      name: "read_note",
+      arguments: { path: "keep.md" },
+    });
+    expect(readResult.isError).toBeFalsy();
+    const note = JSON.parse((readResult.content as any)[0].text);
+    expect(note.fm.title).toBe("Keep");
+    expect(note.content).toContain("Keep body");
+
+    const validMove = await client.callTool({
+      name: "move_note",
+      arguments: { oldPath: "keep.md", newPath: "moved/keep.md" },
+    });
+    expect(validMove.isError).toBeFalsy();
+    const moved = JSON.parse((validMove.content as any)[0].text);
+    expect(moved.success).toBe(true);
+    expect(await readFile(join(testVaultPath, "moved/keep.md"), "utf8")).toContain("Keep body");
+    await expect(readFile(join(testVaultPath, "keep.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(join(testVaultPath, "dir-source/nested.md"), "utf8")).toBe("nested");
+  } finally {
+    await client.close();
+    await server.close();
+  }
+}, 10_000);

@@ -527,20 +527,62 @@ export class FileSystemService {
         }
         const oldFullPath = this.resolvePath(oldPath);
         const newFullPath = this.resolvePath(newPath);
+        const sourceDirectoryResult = {
+            success: false,
+            oldPath,
+            newPath,
+            message: `Source path is a directory: ${oldPath}. Please provide a file path.`
+        };
+        const targetDirectoryResult = {
+            success: false,
+            oldPath,
+            newPath,
+            message: `Target path is a directory: ${newPath}. Please provide a file path.`
+        };
+        const sourceMissingResult = {
+            success: false,
+            oldPath,
+            newPath,
+            message: `Source file not found: ${oldPath}. Use list_directory to see available files.`
+        };
         try {
-            // Read source content (will throw ENOENT if not found)
+            // Inspect before mkdir or write. A missing destination is allowed; any
+            // other stat failure uses the structured failure below. Directory checks
+            // do not replace the exclusive wx write, so overwrite=false stays atomic.
+            // Re-check EISDIR at read and write: the path can change after stat.
+            try {
+                const sourceStat = await stat(oldFullPath);
+                if (sourceStat.isDirectory()) {
+                    return sourceDirectoryResult;
+                }
+            }
+            catch (error) {
+                if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+                    return sourceMissingResult;
+                }
+                throw error;
+            }
+            try {
+                const targetStat = await stat(newFullPath);
+                if (targetStat.isDirectory()) {
+                    return targetDirectoryResult;
+                }
+            }
+            catch (error) {
+                if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
+                    throw error;
+                }
+            }
             let content;
             try {
                 content = await readFile(oldFullPath, 'utf-8');
             }
             catch (error) {
                 if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-                    return {
-                        success: false,
-                        oldPath,
-                        newPath,
-                        message: `Source file not found: ${oldPath}. Use list_directory to see available files.`
-                    };
+                    return sourceMissingResult;
+                }
+                if (error instanceof Error && 'code' in error && error.code === 'EISDIR') {
+                    return sourceDirectoryResult;
                 }
                 throw error;
             }
@@ -564,6 +606,9 @@ export class FileSystemService {
                         newPath,
                         message: `Target file already exists: ${newPath}. Use overwrite=true to replace it.`
                     };
+                }
+                if (error instanceof Error && 'code' in error && error.code === 'EISDIR') {
+                    return targetDirectoryResult;
                 }
                 throw error;
             }
