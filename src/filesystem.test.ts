@@ -1,7 +1,7 @@
 import { test, expect, beforeEach, afterEach, describe, vi } from "vitest";
 import { FileSystemService, classifyWriteError } from "./filesystem.js";
 import { PathFilter } from "./pathfilter.js";
-import { writeFile, readFile, mkdir, mkdtemp, rm, symlink } from "fs/promises";
+import { writeFile, readFile, readdir, mkdir, mkdtemp, rm, symlink } from "fs/promises";
 import { join, relative } from "path";
 import { tmpdir, homedir } from "os";
 
@@ -1400,6 +1400,68 @@ test("symlink to file outside vault is blocked", async () => {
   }
 });
 
+test("dangling file symlink cannot create a file outside the vault", async () => {
+  const outside = await mkdtemp(join(tmpdir(), "mcpvault-outside-"));
+  const target = join(outside, "new.md");
+  await symlink(target, join(testVaultPath, "link.md"));
+  await writeFile(join(testVaultPath, "source.md"), "keep");
+  try {
+    await expect(fileSystem.writeNote({ path: "link.md", content: "escape" }))
+      .rejects.toThrow(/Cannot resolve symlink/);
+    await expect(fileSystem.moveNote({ oldPath: "source.md", newPath: "link.md", overwrite: true }))
+      .rejects.toThrow(/Cannot resolve symlink/);
+    await expect(fileSystem.moveFile({
+      oldPath: "source.md", newPath: "link.md", overwrite: true,
+      confirmOldPath: "source.md", confirmNewPath: "link.md"
+    })).rejects.toThrow(/Cannot resolve symlink/);
+    await expect(readFile(target)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(join(testVaultPath, "source.md"), "utf8")).toBe("keep");
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("missing parents below an outside symlink cannot bypass the vault boundary", async () => {
+  const outside = await mkdtemp(join(tmpdir(), "mcpvault-outside-"));
+  await symlink(outside, join(testVaultPath, "linked"));
+  await writeFile(join(testVaultPath, "source.md"), "keep");
+  const newPath = "linked/new/deeper/note.md";
+  try {
+    await expect(fileSystem.writeNote({ path: newPath, content: "escape" }))
+      .rejects.toThrow(/Symlink target is outside vault/);
+    await expect(fileSystem.moveNote({ oldPath: "source.md", newPath }))
+      .rejects.toThrow(/Symlink target is outside vault/);
+    await expect(fileSystem.moveFile({
+      oldPath: "source.md", newPath,
+      confirmOldPath: "source.md", confirmNewPath: newPath
+    })).rejects.toThrow(/Symlink target is outside vault/);
+    await expect(readFile(join(outside, "new/deeper/note.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await fileSystem.exists("source.md")).toBe(true);
+    expect(await readdir(outside)).toEqual([]);
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("missing parents below a dangling directory symlink are rejected", async () => {
+  const outside = await mkdtemp(join(tmpdir(), "mcpvault-outside-"));
+  await symlink(join(outside, "absent"), join(testVaultPath, "linked"));
+  try {
+    await expect(fileSystem.writeNote({ path: "linked/new/note.md", content: "escape" }))
+      .rejects.toThrow(/Cannot resolve symlink/);
+    expect(await readdir(outside)).toEqual([]);
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("new nested paths through in-vault directory symlinks remain writable", async () => {
+  await mkdir(join(testVaultPath, "real"));
+  await symlink(join(testVaultPath, "real"), join(testVaultPath, "linked"));
+  await fileSystem.writeNote({ path: "linked/new/deeper/note.md", content: "inside" });
+  expect(await readFile(join(testVaultPath, "real/new/deeper/note.md"), "utf8")).toBe("inside");
+});
+
 test("symlink to file inside vault works", async () => {
   const content = "# Real Note\n\nThis is inside the vault.";
   await mkdir(join(testVaultPath, "deep"), { recursive: true });
@@ -1437,7 +1499,7 @@ test("broken symlink is handled gracefully", async () => {
   await symlink("/nonexistent/path/file.md", join(testVaultPath, "broken-link.md"));
 
   await expect(fileSystem.readNote("broken-link.md"))
-    .rejects.toThrow(/File not found/);
+    .rejects.toThrow(/Cannot resolve symlink/);
 });
 
 test("symlinked file outside vault is skipped in listDirectory", async () => {
