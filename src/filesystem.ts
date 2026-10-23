@@ -581,19 +581,44 @@ export class FileSystemService {
     const oldFullPath = this.resolvePath(oldPath);
     const newFullPath = this.resolvePath(newPath);
 
+    if (oldFullPath === newFullPath) {
+      return {
+        success: false,
+        oldPath,
+        newPath,
+        message: `Source and target paths are the same: ${oldPath}. Please provide a different target path.`
+      };
+    }
+
+    const sourceDirectoryResult: MoveResult = {
+      success: false,
+      oldPath,
+      newPath,
+      message: `Source path is a directory: ${oldPath}. Please provide a file path.`
+    };
+    const targetDirectoryResult: MoveResult = {
+      success: false,
+      oldPath,
+      newPath,
+      message: `Target path is a directory: ${newPath}. Please provide a file path.`
+    };
+    const sourceMissingResult: MoveResult = {
+      success: false,
+      oldPath,
+      newPath,
+      message: `Source file not found: ${oldPath}. Use list_directory to see available files.`
+    };
+
     try {
-      // Read source content (will throw ENOENT if not found)
       let content: string;
       try {
         content = await readFile(oldFullPath, 'utf-8');
       } catch (error) {
         if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-          return {
-            success: false,
-            oldPath,
-            newPath,
-            message: `Source file not found: ${oldPath}. Use list_directory to see available files.`
-          };
+          return sourceMissingResult;
+        }
+        if (error instanceof Error && 'code' in error && error.code === 'EISDIR') {
+          return sourceDirectoryResult;
         }
         throw error;
       }
@@ -610,13 +635,28 @@ export class FileSystemService {
           await writeFile(newFullPath, content, { encoding: 'utf-8', flag: 'wx' });
         }
       } catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'EEXIST') {
-          return {
-            success: false,
-            oldPath,
-            newPath,
-            message: `Target file already exists: ${newPath}. Use overwrite=true to replace it.`
-          };
+        if (error instanceof Error && 'code' in error) {
+          if (error.code === 'EISDIR') {
+            return targetDirectoryResult;
+          }
+          // Inspect only after a failed write; these codes also cover Windows directories.
+          if (error.code === 'EEXIST' || error.code === 'EPERM' || error.code === 'EACCES') {
+            try {
+              if ((await stat(newFullPath)).isDirectory()) {
+                return targetDirectoryResult;
+              }
+            } catch {
+              // Preserve the write error if the target changed or cannot be inspected.
+            }
+          }
+          if (error.code === 'EEXIST') {
+            return {
+              success: false,
+              oldPath,
+              newPath,
+              message: `Target file already exists: ${newPath}. Use overwrite=true to replace it.`
+            };
+          }
         }
         throw error;
       }

@@ -440,6 +440,12 @@ export function UpdateCallout() {
           </div>
 
           <p class="latest-update">
+            <span class="entry-version">Unreleased:</span> Clearer <code>move_note</code> directory errors and protection against moves onto the same path (
+            <a href="https://github.com/bitbonsai/mcpvault/pull/247" target="_blank" rel="noopener noreferrer">#247</a>
+            , thanks <a href="https://github.com/mvanhorn" target="_blank" rel="noopener noreferrer">@mvanhorn</a>).
+          </p>
+
+          <p class="latest-update">
             <span class="entry-version">v0.17.0 (October 2026):</span> Added repeatable <code>--exclude &lt;subtree&gt;</code> defaults for search and directory listings.
             Per-call exclusions add to those defaults, while direct reads and writes remain available (
             <a href="https://github.com/bitbonsai/mcpvault/issues/235" target="_blank" rel="noopener noreferrer">
