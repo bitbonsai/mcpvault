@@ -70,6 +70,18 @@ describe("GET / (HTML)", () => {
     expect(body).toContain('action="/api/subscribe"');
   });
 
+  test("credits the move_note contributor as an unreleased update in HTML and Markdown", async () => {
+    const body = await (await app.request("/")).text();
+    const markdown = await Bun.file(new URL("../../public/index.md", import.meta.url)).text();
+    for (const content of [body, markdown]) {
+      expect(content).toContain("Unreleased");
+      expect(content).toContain("move_note");
+      expect(content).toContain("https://github.com/bitbonsai/mcpvault/pull/247");
+      expect(content).toContain("https://github.com/mvanhorn");
+      expect(content).toContain("@mvanhorn");
+    }
+  });
+
   test("newsletter form renders Turnstile with standard form semantics", async () => {
     const body = await (await app.request("/")).text();
     expect(body).toContain('method="post" action="/api/subscribe"');

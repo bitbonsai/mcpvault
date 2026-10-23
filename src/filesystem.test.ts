@@ -1601,6 +1601,21 @@ test("move note rejects directory destinations without suggesting overwrite", as
   expect(await readFile(join(testVaultPath, "folder.md/nested/child.md"), "utf-8")).toBe("child-bytes");
 });
 
+test("move note rejects the same resolved path without deleting content", async () => {
+  const content = "---\ntitle: Keep\n---\n\nKeep body\n";
+  await mkdir(join(testVaultPath, "notes"));
+  await writeFile(join(testVaultPath, "notes/keep.md"), content);
+
+  for (const newPath of ["notes/keep.md", "notes/./keep.md", "notes/../notes/keep.md"]) {
+    for (const overwrite of [false, true]) {
+      const result = await fileSystem.moveNote({ oldPath: "notes/keep.md", newPath, overwrite });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("Source and target paths are the same");
+      expect(await readFile(join(testVaultPath, "notes/keep.md"), "utf8")).toBe(content);
+    }
+  }
+});
+
 test("move note keeps regular-file collision behavior", async () => {
   await writeFile(join(testVaultPath, "source.md"), "source-bytes");
   await writeFile(join(testVaultPath, "target.md"), "target-bytes");
@@ -1672,6 +1687,30 @@ test("move note classifies EISDIR from read and write without unlinking the sour
     }
   }
   expect(await readFile(join(testVaultPath, "source.md"), "utf-8")).toBe(source);
+});
+
+test("move note classifies directory write failures without masking permission errors", async () => {
+  await writeFile(join(testVaultPath, "source.md"), "keep");
+  await mkdir(join(testVaultPath, "target"));
+
+  for (const code of ["EEXIST", "EPERM", "EACCES"]) {
+    fsFaults.writeFile = Object.assign(new Error(`${code}: write failed`), { code });
+    try {
+      const directory = await fileSystem.moveNote({ oldPath: "source.md", newPath: "target", overwrite: true });
+      expect(directory.message).toBe("Target path is a directory: target. Please provide a file path.");
+      expect(directory.success).toBe(false);
+
+      const missing = await fileSystem.moveNote({ oldPath: "source.md", newPath: "missing.md" });
+      expect(missing.success).toBe(false);
+      expect(missing.message).not.toContain("is a directory");
+      if (code !== "EEXIST") {
+        expect(missing.message).toBe(`Failed to move note: ${code}: write failed`);
+      }
+    } finally {
+      fsFaults.writeFile = undefined;
+    }
+  }
+  expect(await readFile(join(testVaultPath, "source.md"), "utf8")).toBe("keep");
 });
 
 test("move note keeps unrelated I/O errors from being classified as directories", async () => {
