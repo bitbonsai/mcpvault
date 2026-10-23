@@ -38,6 +38,18 @@ interface Update {
 
 const OLDER_UPDATES: Update[] = [
   {
+    version: "v0.17.0",
+    date: "October 2026",
+    body: (
+      <>
+        Added repeatable <code>--exclude &lt;subtree&gt;</code> defaults for search and directory listings.
+        Per-call exclusions add to those defaults, while direct reads and writes remain available (
+        <a href="https://github.com/bitbonsai/mcpvault/issues/235" target="_blank" rel="noopener noreferrer">#235</a>
+        ).
+      </>
+    ),
+  },
+  {
     version: "v0.16.1",
     date: "October 2026",
     body: (
@@ -414,7 +426,7 @@ export function UpdateCallout() {
         <div class="callout-body">
           <div class="updates-heading">
             <h3>
-              Recent updates <span class="version-pill">v0.17.0</span>
+              Recent updates <span class="version-pill">v0.17.1</span>
             </h3>
             <button
               type="button"
@@ -440,18 +452,10 @@ export function UpdateCallout() {
           </div>
 
           <p class="latest-update">
-            <span class="entry-version">Unreleased:</span> Clearer <code>move_note</code> directory errors and protection against moves onto the same path (
+            <span class="entry-version">v0.17.1 (October 2026):</span> Hardened vault-boundary checks for symlink paths.
+            Clearer <code>move_note</code> directory errors and protection against moves onto the same path (
             <a href="https://github.com/bitbonsai/mcpvault/pull/247" target="_blank" rel="noopener noreferrer">#247</a>
             , thanks <a href="https://github.com/mvanhorn" target="_blank" rel="noopener noreferrer">@mvanhorn</a>).
-          </p>
-
-          <p class="latest-update">
-            <span class="entry-version">v0.17.0 (October 2026):</span> Added repeatable <code>--exclude &lt;subtree&gt;</code> defaults for search and directory listings.
-            Per-call exclusions add to those defaults, while direct reads and writes remain available (
-            <a href="https://github.com/bitbonsai/mcpvault/issues/235" target="_blank" rel="noopener noreferrer">
-              #235
-            </a>
-            ).
           </p>
 
           <div id="older-updates" class="older-updates is-collapsed" data-updates-panel x-bind:class="{ 'is-expanded': expanded, 'is-collapsed': !expanded }">

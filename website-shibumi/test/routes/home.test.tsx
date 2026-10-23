@@ -70,11 +70,13 @@ describe("GET / (HTML)", () => {
     expect(body).toContain('action="/api/subscribe"');
   });
 
-  test("credits the move_note contributor as an unreleased update in HTML and Markdown", async () => {
+  test("credits the move_note contributor in the 0.17.1 HTML and Markdown update", async () => {
     const body = await (await app.request("/")).text();
     const markdown = await Bun.file(new URL("../../public/index.md", import.meta.url)).text();
     for (const content of [body, markdown]) {
-      expect(content).toContain("Unreleased");
+      expect(content).toContain("v0.17.1 (October 2026)");
+      expect(content).toContain("Hardened vault-boundary checks for symlink paths.");
+      expect(content).not.toContain("Unreleased");
       expect(content).toContain("move_note");
       expect(content).toContain("https://github.com/bitbonsai/mcpvault/pull/247");
       expect(content).toContain("https://github.com/mvanhorn");
