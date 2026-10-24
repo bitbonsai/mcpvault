@@ -215,3 +215,64 @@ describe("parseFrontmatter", () => {
     expect(() => parseFrontmatter(42)).toThrow("frontmatter must be a JSON object");
   });
 });
+
+// ── CRLF (Windows line endings) ──────────────────────────────────────────────
+// Regression: on a CRLF note the raw matter carries a trailing \r into the YAML
+// scalar, so `updateFrontmatter` rewrote tag "a" as "a\r" — a DIFFERENT tag in
+// Obsidian — and silently replaced the whole frontmatter block with LF while the
+// body stayed CRLF. All three write paths (update_frontmatter, manage_tags and
+// write_note append/prepend) funnel through preserveStringify, so they shared it.
+
+const crlfNote = [
+  "---",
+  "title: Test",
+  "tags:",
+  "  - a",
+  "---",
+  "",
+  "# Head",
+  "body line",
+  "",
+].join("\r\n");
+
+describe("CRLF notes", () => {
+  test("parse does not leak \r into frontmatter values", () => {
+    const parsed = handler.parse(crlfNote);
+
+    expect(parsed.frontmatter.title).toBe("Test");
+    expect(parsed.frontmatter.tags).toEqual(["a"]);
+  });
+
+  test("updateFrontmatter keeps tags intact and does not quote them", () => {
+    const out = handler.updateFrontmatter(crlfNote, { status: "ok" });
+
+    expect(out).not.toContain('"a\r"');
+    expect(out).not.toContain("a\r\r");
+    expect(handler.parse(out).frontmatter.tags).toEqual(["a"]);
+    expect(handler.parse(out).frontmatter.status).toBe("ok");
+  });
+
+  test("updateFrontmatter preserves CRLF throughout the file", () => {
+    const out = handler.updateFrontmatter(crlfNote, { status: "ok" });
+
+    // every \n must be part of a \r\n pair — no mixed endings
+    expect(out.replace(/\r\n/g, "")).not.toContain("\n");
+    expect(out.startsWith("---\r\n")).toBe(true);
+  });
+
+  test("appending to a CRLF note does not corrupt frontmatter", () => {
+    const parsed = handler.parse(crlfNote);
+    const out = handler.preserveStringify(parsed.matter, {}, parsed.content + "appended\r\n");
+
+    expect(handler.parse(out).frontmatter.tags).toEqual(["a"]);
+    expect(out).toContain("appended");
+  });
+
+  test("LF notes stay LF (no regression)", () => {
+    const lfNote = crlfNote.replace(/\r\n/g, "\n");
+    const out = handler.updateFrontmatter(lfNote, { status: "ok" });
+
+    expect(out).not.toContain("\r");
+    expect(handler.parse(out).frontmatter.tags).toEqual(["a"]);
+  });
+});
