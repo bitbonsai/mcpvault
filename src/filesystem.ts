@@ -511,7 +511,7 @@ export class FileSystemService {
       }
 
       if (trashMode === 'system') {
-        await trash(fullPath);
+        await trash(fullPath, { glob: false });
         return {
           success: true,
           path: path,
