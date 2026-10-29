@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.2] - 2026-10-30
+
+### Security
+- `delete_note` with `trashMode: "system"` now treats the confirmed path as a literal filename. Brackets and other pattern characters in note or vault names no longer select unconfirmed neighboring files for trash ([#258](https://github.com/bitbonsai/mcpvault/pull/258)).
+
+### Changed
+- Refreshed locked dependencies, including Zod 4.6.7, MCP SDK 2.4.0, and YAML 2.9.1 ([#256](https://github.com/bitbonsai/mcpvault/pull/256), [#257](https://github.com/bitbonsai/mcpvault/pull/257)). System-trash support remains on `trash` 9.0.0.
+
 ## [0.17.1] - 2026-10-23
 
 ### Security

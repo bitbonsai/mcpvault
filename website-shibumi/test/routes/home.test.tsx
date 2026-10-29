@@ -70,6 +70,17 @@ describe("GET / (HTML)", () => {
     expect(body).toContain('action="/api/subscribe"');
   });
 
+  test("keeps the latest release callout and Markdown in sync", async () => {
+    const body = await (await app.request("/")).text();
+    const markdown = await Bun.file(new URL("../../public/index.md", import.meta.url)).text();
+    expect(body).toContain(`<span class="version-pill">v${packageVersion}</span>`);
+    for (const content of [body, markdown]) {
+      expect(content).toContain(`v${packageVersion} (October 2026)`);
+      expect(content).toContain("System trash now uses exact filenames.");
+      expect(content).toContain("https://github.com/bitbonsai/mcpvault/pull/258");
+    }
+  });
+
   test("credits the move_note contributor in the 0.17.1 HTML and Markdown update", async () => {
     const body = await (await app.request("/")).text();
     const markdown = await Bun.file(new URL("../../public/index.md", import.meta.url)).text();

@@ -16,6 +16,7 @@ MCPVault reads, searches, and edits local vault files. Obsidian can stay closed,
 
 ## Recent Updates
 
+- **v0.17.2 (October 2026):** System trash now uses exact filenames. Brackets and other pattern characters no longer select neighboring notes. Dependencies refreshed. ([#258](https://github.com/bitbonsai/mcpvault/pull/258))
 - **v0.17.1 (October 2026):** Hardened vault-boundary checks for symlink paths. Clearer `move_note` directory errors and protection against moves onto the same path. ([#247](https://github.com/bitbonsai/mcpvault/pull/247), thanks [@mvanhorn](https://github.com/mvanhorn))
 - **v0.17.0 (October 2026):** Added repeatable `--exclude <subtree>` defaults for search and directory listings. Per-call exclusions add to those defaults, while direct reads and writes remain available. ([#235](https://github.com/bitbonsai/mcpvault/issues/235))
 - **v0.16.1 (October 2026):** Updated MCP SDK and test dependencies to patched releases, and pinned system-trash support to a dependency chain without the current high-severity `braces` advisory.
