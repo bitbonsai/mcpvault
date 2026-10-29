@@ -38,6 +38,18 @@ interface Update {
 
 const OLDER_UPDATES: Update[] = [
   {
+    version: "v0.17.1",
+    date: "October 2026",
+    body: (
+      <>
+        Hardened vault-boundary checks for symlink paths.
+        Clearer <code>move_note</code> directory errors and protection against moves onto the same path (
+        <a href="https://github.com/bitbonsai/mcpvault/pull/247" target="_blank" rel="noopener noreferrer">#247</a>
+        , thanks <a href="https://github.com/mvanhorn" target="_blank" rel="noopener noreferrer">@mvanhorn</a>).
+      </>
+    ),
+  },
+  {
     version: "v0.17.0",
     date: "October 2026",
     body: (
@@ -426,7 +438,7 @@ export function UpdateCallout() {
         <div class="callout-body">
           <div class="updates-heading">
             <h3>
-              Recent updates <span class="version-pill">v0.17.1</span>
+              Recent updates <span class="version-pill">v0.17.2</span>
             </h3>
             <button
               type="button"
@@ -452,10 +464,10 @@ export function UpdateCallout() {
           </div>
 
           <p class="latest-update">
-            <span class="entry-version">v0.17.1 (October 2026):</span> Hardened vault-boundary checks for symlink paths.
-            Clearer <code>move_note</code> directory errors and protection against moves onto the same path (
-            <a href="https://github.com/bitbonsai/mcpvault/pull/247" target="_blank" rel="noopener noreferrer">#247</a>
-            , thanks <a href="https://github.com/mvanhorn" target="_blank" rel="noopener noreferrer">@mvanhorn</a>).
+            <span class="entry-version">v0.17.2 (October 2026):</span> System trash now uses exact filenames.
+            Brackets and other pattern characters no longer select neighboring notes (
+            <a href="https://github.com/bitbonsai/mcpvault/pull/258" target="_blank" rel="noopener noreferrer">#258</a>
+            ). Dependencies refreshed.
           </p>
 
           <div id="older-updates" class="older-updates is-collapsed" data-updates-panel x-bind:class="{ 'is-expanded': expanded, 'is-collapsed': !expanded }">
