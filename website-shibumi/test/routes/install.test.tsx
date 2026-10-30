@@ -63,6 +63,14 @@ describe("GET /install/ (HTML)", () => {
     expect(body).toContain("--exclude &lt;subtree&gt;");
   });
 
+  test("keeps the Node.js minimum aligned in HTML and Markdown", async () => {
+    const body = await (await app.request("/install/")).text();
+    const markdown = await Bun.file(new URL("../../public/install.md", import.meta.url)).text();
+    for (const content of [body, markdown]) {
+      expect(content).toContain("Requires Node.js 22.12.0 or later.");
+    }
+  });
+
   test("renders server-side highlighted JSON config samples, not react-syntax-highlighter", async () => {
     const body = await (await app.request("/install/")).text();
     expect(body).toContain('class="shiki');

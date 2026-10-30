@@ -31,7 +31,7 @@ https://github.com/user-attachments/assets/657ac4c6-1cd2-4cc3-829f-fd095a32f71c
 1. **Install Node.js runtime:**
 
    ```bash
-   # Download from https://nodejs.org (v20.0.0 or later)
+   # Download from https://nodejs.org (v22.12.0 or later)
    # or use a package manager like nvm, brew, apt, etc.
    ```
 
@@ -125,7 +125,7 @@ An MCP client starts MCPVault as a local stdio process and passes the vault path
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org) runtime (v20.0.0 or later)
+- [Node.js](https://nodejs.org) runtime (v22.12.0 or later)
 - An Obsidian vault (local directory with `.md`, `.markdown`, `.txt`, `.base`, or `.canvas` files)
 - MCP-compatible AI client (Claude Desktop, ChatGPT Desktop, Claude Code, etc.)
 
