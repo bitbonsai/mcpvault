@@ -1,6 +1,6 @@
 # Install MCPVault
 
-Choose your MCP client and add one local server entry.
+Requires Node.js 22.12.0 or later. Choose your MCP client and add one local server entry.
 
 ## Step 1: Configure your MCP client
 

@@ -291,7 +291,7 @@ export async function Terminal() {
           <h2 id="terminal-heading" class="terminal-intro-title">
             Install MCPVault
           </h2>
-          <p class="terminal-intro-lede">Choose your MCP client and add one local server entry.</p>
+          <p class="terminal-intro-lede">Requires Node.js 22.12.0 or later. Choose your MCP client and add one local server entry.</p>
         </div>
 
         <div class="terminal-steps">
