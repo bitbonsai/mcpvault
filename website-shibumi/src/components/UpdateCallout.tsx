@@ -38,6 +38,18 @@ interface Update {
 
 const OLDER_UPDATES: Update[] = [
   {
+    version: "v0.17.2",
+    date: "October 2026",
+    body: (
+      <>
+        System trash now uses exact filenames.
+        Brackets and other pattern characters no longer select neighboring notes (
+        <a href="https://github.com/bitbonsai/mcpvault/pull/258" target="_blank" rel="noopener noreferrer">#258</a>
+        ). Dependencies refreshed.
+      </>
+    ),
+  },
+  {
     version: "v0.17.1",
     date: "October 2026",
     body: (
@@ -438,7 +450,7 @@ export function UpdateCallout() {
         <div class="callout-body">
           <div class="updates-heading">
             <h3>
-              Recent updates <span class="version-pill">v0.17.2</span>
+              Recent updates <span class="version-pill">v0.17.3</span>
             </h3>
             <button
               type="button"
@@ -464,10 +476,10 @@ export function UpdateCallout() {
           </div>
 
           <p class="latest-update">
-            <span class="entry-version">v0.17.2 (October 2026):</span> System trash now uses exact filenames.
-            Brackets and other pattern characters no longer select neighboring notes (
-            <a href="https://github.com/bitbonsai/mcpvault/pull/258" target="_blank" rel="noopener noreferrer">#258</a>
-            ). Dependencies refreshed.
+            <span class="entry-version">v0.17.3 (October 2026):</span> Updated system-trash support to <code>trash</code> 10.1.1.
+            Exact-filename safeguards remain enabled (
+            <a href="https://github.com/bitbonsai/mcpvault/pull/253" target="_blank" rel="noopener noreferrer">#253</a>
+            ).
           </p>
 
           <div id="older-updates" class="older-updates is-collapsed" data-updates-panel x-bind:class="{ 'is-expanded': expanded, 'is-collapsed': !expanded }">

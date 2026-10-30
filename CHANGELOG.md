@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.3] - 2026-10-30
+
+### Changed
+- Updated system-trash support from `trash` 9.0.0 to 10.1.1, including upstream WSL support and trash-path fixes ([#253](https://github.com/bitbonsai/mcpvault/pull/253)). Literal-filename safeguards from 0.17.2 remain enabled; MCPVault's API and Node.js 20 minimum are unchanged.
+
 ## [0.17.2] - 2026-10-30
 
 ### Security
