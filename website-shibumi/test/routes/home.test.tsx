@@ -76,8 +76,9 @@ describe("GET / (HTML)", () => {
     expect(body).toContain(`<span class="version-pill">v${packageVersion}</span>`);
     for (const content of [body, markdown]) {
       expect(content).toContain(`v${packageVersion} (October 2026)`);
-      expect(content).toContain("System trash now uses exact filenames.");
-      expect(content).toContain("https://github.com/bitbonsai/mcpvault/pull/258");
+      expect(content).toContain("Updated system-trash support to");
+      expect(content).toContain("Exact-filename safeguards remain enabled");
+      expect(content).toContain("https://github.com/bitbonsai/mcpvault/pull/253");
     }
   });
 
