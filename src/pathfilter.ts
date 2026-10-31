@@ -121,10 +121,14 @@ export class PathFilter {
     // on case-insensitive / Windows filesystems.
     const canonicalPath = this.canonicalizeForMatch(normalizedPath);
 
-    // Deny restricted directories/files at any depth: if any path segment is a
-    // restricted name, the path is ignored regardless of nesting (#128).
+    // Deny hidden paths and restricted directories/files at any depth. Dotfiles
+    // are outside the public vault-note surface even when their suffix looks
+    // like an allowed note extension (for example, `.secrets.md`).
     for (const segment of canonicalPath.split('/')) {
-      if (PathFilter.RESTRICTED_SEGMENTS.has(segment.toLowerCase())) {
+      if (
+        segment.startsWith('.') ||
+        PathFilter.RESTRICTED_SEGMENTS.has(segment.toLowerCase())
+      ) {
         return true;
       }
     }

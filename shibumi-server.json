@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "provider": "shibumi-server",
+  "server": {
+    "hostname": "alpha"
+  },
+  "domain": "mcpvault.org",
+  "appId": "mcpvault-org",
+  "repository": "github:bitbonsai/mcpvault",
+  "branch": "main",
+  "webhookUrl": "https://mcpvault.org/hooks/github/mcpvault-org",
+  "service": "web",
+  "port": 9103,
+  "healthPath": "/healthz",
+  "deploymentMode": "prebuilt",
+  "platform": "linux/arm64",
+  "cutoverRequired": false,
+  "trigger": "ship"
+}

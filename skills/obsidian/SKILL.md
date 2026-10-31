@@ -5,7 +5,7 @@ description: >
   frontmatter, daily notes, backup, or sync. Route operations across MCP,
   Obsidian CLI/app actions, and git sync with safe defaults.
 metadata:
-  version: "2.1"
+  version: "2.2"
   author: bitbonsai
 ---
 
@@ -17,23 +17,33 @@ Use the backend that best matches user intent:
 
 1. **MCP (default for vault data operations)**
    - Read/write/patch/search notes
+   - Move/rename notes with `move_note`, then explicitly repair backlinks
    - Frontmatter and tag updates
    - Metadata and batch note operations
 
 2. **Obsidian CLI/App context (only when app context is needed)**
    - Open a note in Obsidian from URI
    - Trigger app/plugin workflows that MCP cannot perform
-   - **Move/rename notes when the app is running.** The CLI's `move` goes
-     through Obsidian's runtime and rewrites every internal link pointing at
-     the old path. MCP's `move_note` is a filesystem move: backlinks in other
-     notes go stale. If Obsidian is not running, fall back to MCP `move_note`
-     and tell the user backlinks were not updated.
 
 3. **CLI git (sync/backup workflows)**
    - Initialize repo, configure remote, commit, pull, push
    - Periodic or manual vault backup/sync requests
 
 When a request is ambiguous, pick MCP first unless the user explicitly asks for sync/backup/git/app behavior.
+
+## Safe Note Rename Workflow
+
+Use MCP `move_note` for every note move or rename, even when Obsidian is running. Do not invoke the Obsidian CLI `move` command automatically: delayed link rewrites can apply stale byte offsets to notes edited after the move began, silently corrupting unrelated content ([#176](https://github.com/bitbonsai/mcpvault/issues/176)). Reconsider CLI moves only after an upstream fix has been independently retested.
+
+Backlink preservation is an explicit, verifiable second step:
+
+1. Before moving, search for the old wikilink target using both its vault-relative path and filename without the extension. If Obsidian is running, its read-only `backlinks` command may supplement discovery, but it does not replace the MCP search.
+2. Move the note with MCP `move_note`.
+3. Read each referring note and patch only exact wikilink targets, including embeds and links with aliases or fragments. Preserve display text (`|alias`) and `#heading` / `#^block-id` suffixes while changing the target.
+4. Search again for the old path and basename. Report any remaining references instead of claiming success.
+5. `search_notes` returns at most 20 results. If a search reaches that cap, or the old basename is ambiguous, tell the user exhaustive backlink repair cannot be proven and ask before continuing with a broader scan.
+
+Report the move and backlink repair separately: which note moved, how many referring notes changed, and any stale references that remain.
 
 ## Gotchas
 
@@ -143,7 +153,7 @@ When the user asks for app-context operations (active file, open in editor, dail
    - Check Obsidian is running: `pgrep -xiq obsidian` (macOS/Linux) or `tasklist /FI "IMAGENAME eq Obsidian.exe" /NH` (Windows)
    - If either fails, tell the user and fall back to MCP tools + `obsidian://` URIs
 
-2. Vault targeting: `obsidian vault="VaultName" <command>`. The vault name is the folder basename unless `OBSIDIAN_VAULT_NAME` is set.
+2. Vault targeting: `obsidian vault="VaultName" <command>`. If `OBSIDIAN_VAULT_NAME` is set, use that explicit value. Otherwise run `obsidian vaults`, match the MCP vault path to a registered vault, and use its registered name. If no unique match exists, ask the user. Never infer the registered name from the folder basename.
 
 3. Key commands:
    ```bash
@@ -173,19 +183,16 @@ When the user asks for app-context operations (active file, open in editor, dail
 
    # Find unresolved links
    obsidian unresolved
-
-   # Move/rename a note — rewrites all internal links to the old path.
-   # Run `obsidian help move` first for the exact parameters of the
-   # installed version; do not guess them.
-   obsidian move ...
    ```
+
+   Do not use `obsidian move`; follow **Safe Note Rename Workflow** with MCP `move_note` and explicit backlink repair.
 
 4. Run `obsidian help` for the full command reference. The CLI evolves with Obsidian releases.
 
 5. **When to use CLI vs MCP:**
-   - MCP for reads/writes/search/tags/frontmatter (sandboxed, validated, works headless)
-   - CLI for active file, daily notes with template expansion, backlinks, open in editor, plugin commands
-   - CLI for move/rename when the app is running (link-aware; see Routing Policy). MCP `move_note` as fallback, warning that backlinks were not updated
+   - MCP for reads/writes/search/tags/frontmatter and all note moves/renames (sandboxed, validated, works headless)
+   - CLI for active file, daily notes with template expansion, read-only backlink discovery, open in editor, and plugin commands
+   - After `move_note`, repair and verify backlinks explicitly with the Safe Note Rename Workflow
    - If unsure, prefer MCP
 
 ## Resources

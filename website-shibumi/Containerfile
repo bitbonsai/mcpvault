@@ -1,0 +1,34 @@
+# Minimal pinned Bun image for the Shibumi-stack website skeleton.
+# Built for rootless Podman; runs as the non-root `bun` user.
+#
+# BUILD CONTEXT IS THE REPO ROOT, not this directory:
+#   podman build -f website-shibumi/Containerfile -t mcpvault-web .
+# The root package.json must be copied to /package.json because
+# src/lib/version.ts reads the published MCP package version from three
+# directories above /app/src/lib at startup (nav badge + structured data);
+# without it the server exits 1 with ENOENT at import time.
+# oven/bun:1.4.0-alpine, digest-pinned so the base image can't drift under
+# the mutable tag; re-pin deliberately when bumping the Bun version.
+FROM docker.io/oven/bun:1.4.0-alpine@sha256:07235578f79ef8c6f97d94aee7938e76f5cdba5f21ae5dbfdd3d3d38058437eb
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Install exactly what the committed lockfile says.
+COPY website-shibumi/package.json website-shibumi/bun.lock ./
+RUN bun install --frozen-lockfile --production
+
+COPY website-shibumi/tsconfig.json website-shibumi/server.ts ./
+COPY website-shibumi/src ./src
+COPY website-shibumi/public ./public
+
+# Repo-root manifest: the single source of the published package version.
+COPY package.json /package.json
+
+USER bun
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -q -O /dev/null http://127.0.0.1:3000/healthz || exit 1
+
+CMD ["bun", "server.ts"]

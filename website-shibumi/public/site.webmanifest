@@ -1,0 +1,16 @@
+{
+  "name": "MCPVault",
+  "short_name": "MCPVault",
+  "description": "A local MCP server for reading, searching, and editing notes in an Obsidian vault.",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#8b5cf6",
+  "background_color": "#0d0d0d"
+}

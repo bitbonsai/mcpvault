@@ -1,9 +1,36 @@
-import { test, expect, beforeEach, afterEach, describe } from "vitest";
+import { test, expect, beforeEach, afterEach, describe, vi } from "vitest";
 import { FileSystemService, classifyWriteError } from "./filesystem.js";
 import { PathFilter } from "./pathfilter.js";
-import { writeFile, readFile, mkdir, mkdtemp, rm, symlink } from "fs/promises";
+import { writeFile, readFile, readdir, mkdir, mkdtemp, rm, symlink } from "fs/promises";
 import { join, relative } from "path";
 import { tmpdir, homedir } from "os";
+
+// ESM namespace exports are not configurable, so spyOn cannot reach the
+// bindings filesystem.ts already imported. Faults are injected at the
+// node:fs/promises boundary and cleared in each test's finally.
+const fsFaults = vi.hoisted(() => ({
+  readFile: undefined as Error | undefined,
+  writeFile: undefined as Error | undefined,
+}));
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    readFile: (...args: any[]) => {
+      if (fsFaults.readFile) {
+        throw fsFaults.readFile;
+      }
+      return (actual.readFile as any)(...args);
+    },
+    writeFile: (...args: any[]) => {
+      if (fsFaults.writeFile) {
+        throw fsFaults.writeFile;
+      }
+      return (actual.writeFile as any)(...args);
+    },
+  };
+});
 
 let testVaultPath: string;
 let fileSystem: FileSystemService;
@@ -104,6 +131,333 @@ test("patch note fails when string not found", async () => {
   expect(result.success).toBe(false);
   expect(result.matchCount).toBe(0);
   expect(result.message).toContain("String not found");
+});
+
+// ============================================================================
+// GET NOTE OUTLINE TESTS
+// ============================================================================
+
+describe("getNoteOutline", () => {
+  test("returns headings with level, text, and line number", async () => {
+    const testPath = "outline-test.md";
+    const content = "# Heading 1\n\nSome text.\n\n## Heading 2\n\nMore text.\n\n### Heading 3\n";
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(3);
+    expect(headings[0]).toEqual({ level: 1, text: "Heading 1", line: 1 });
+    expect(headings[1]).toEqual({ level: 2, text: "Heading 2", line: 5 });
+    expect(headings[2]).toEqual({ level: 3, text: "Heading 3", line: 9 });
+  });
+
+  test("returns empty array for note with no headings", async () => {
+    const testPath = "no-headings.md";
+    await writeFile(join(testVaultPath, testPath), "Just some plain text.\n\nNo headings here.");
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(0);
+  });
+
+  test("ignores heading markers inside code blocks and inline text", async () => {
+    const testPath = "mixed.md";
+    const content = "# Real Heading\n\nText with # not a heading\n\n## Another Real Heading\n";
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(2);
+    expect(headings[0]?.text).toBe("Real Heading");
+    expect(headings[1]?.text).toBe("Another Real Heading");
+  });
+
+  test("throws on path outside vault", async () => {
+    await expect(fileSystem.getNoteOutline("../outside.md")).rejects.toThrow();
+  });
+
+  test("ignores heading markers inside fenced code blocks (backtick and tilde fences)", async () => {
+    const testPath = "fenced.md";
+    const content = [
+      "# Real Heading",
+      "",
+      "```",
+      "# not a heading",
+      "## also not a heading",
+      "```",
+      "",
+      "~~~",
+      "# still not a heading",
+      "~~~",
+      "",
+      "## Another Real Heading"
+    ].join("\n");
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(2);
+    expect(headings[0]?.text).toBe("Real Heading");
+    expect(headings[1]?.text).toBe("Another Real Heading");
+  });
+
+  test("a shorter fence run does not close a longer opening fence", async () => {
+    const testPath = "fence-mismatched-length.md";
+    const content = [
+      "# Real Heading",
+      "",
+      "````",
+      "```",
+      "# not a heading (still inside the 4-backtick fence)",
+      "````",
+      "",
+      "## Another Real Heading"
+    ].join("\n");
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(2);
+    expect(headings[0]?.text).toBe("Real Heading");
+    expect(headings[1]?.text).toBe("Another Real Heading");
+  });
+
+  test("a longer fence run closes a shorter opening fence", async () => {
+    const testPath = "fence-longer-closer.md";
+    const content = [
+      "# Real Heading",
+      "```",
+      "# not a heading",
+      "````",
+      "## Another Real Heading"
+    ].join("\n");
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(2);
+    expect(headings[0]?.text).toBe("Real Heading");
+    expect(headings[1]?.text).toBe("Another Real Heading");
+  });
+
+  test("a fence marker followed by trailing text (e.g. a language tag) is not a valid closer", async () => {
+    const testPath = "fence-trailing-text.md";
+    const content = [
+      "# Real Heading",
+      "```",
+      "```json",
+      "# not a heading (still inside, the line above had trailing text)",
+      "```",
+      "## Another Real Heading"
+    ].join("\n");
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(2);
+    expect(headings[0]?.text).toBe("Real Heading");
+    expect(headings[1]?.text).toBe("Another Real Heading");
+  });
+
+  test("a closer with only trailing whitespace after the markers still closes the fence", async () => {
+    const testPath = "fence-trailing-whitespace.md";
+    const content = [
+      "# Real Heading",
+      "```",
+      "# not a heading",
+      "```   ",
+      "## Another Real Heading"
+    ].join("\n");
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(2);
+    expect(headings[0]?.text).toBe("Real Heading");
+    expect(headings[1]?.text).toBe("Another Real Heading");
+  });
+
+  test("ignores heading markers inside a fence indented up to 3 spaces", async () => {
+    const testPath = "fence-indented.md";
+    const content = [
+      "# Real Heading",
+      "  ```",
+      "  # not a heading",
+      "  ```",
+      "## Another Real Heading"
+    ].join("\n");
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(2);
+    expect(headings[0]?.text).toBe("Real Heading");
+    expect(headings[1]?.text).toBe("Another Real Heading");
+  });
+
+  test("a mismatched fence character (backtick vs tilde) does not close the block", async () => {
+    const testPath = "fence-mismatched-char.md";
+    const content = [
+      "# Real Heading",
+      "```",
+      "~~~",
+      "# not a heading (tilde run doesn't close a backtick fence)",
+      "```",
+      "## Another Real Heading"
+    ].join("\n");
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(2);
+    expect(headings[0]?.text).toBe("Real Heading");
+    expect(headings[1]?.text).toBe("Another Real Heading");
+  });
+
+  test("does not misdetect a YAML comment in frontmatter as a heading (LF)", async () => {
+    const testPath = "frontmatter-lf.md";
+    const content = "---\ntitle: Test\n# not a heading, a YAML comment\n---\n\n# Real Heading\n";
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(1);
+    expect(headings[0]?.text).toBe("Real Heading");
+  });
+
+  test("does not misdetect a YAML comment in frontmatter as a heading (CRLF)", async () => {
+    const testPath = "frontmatter-crlf.md";
+    const content = "---\r\ntitle: Test\r\n# not a heading, a YAML comment\r\n---\r\n\r\n# Real Heading\r\n";
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(1);
+    expect(headings[0]?.text).toBe("Real Heading");
+  });
+
+  test("recognizes a heading indented by up to 3 spaces", async () => {
+    const testPath = "heading-indented.md";
+    const content = "# Real Heading\n   ## Indented Heading\n";
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(2);
+    expect(headings[1]).toMatchObject({ level: 2, text: "Indented Heading" });
+  });
+
+  test("does not recognize a heading indented by 4 or more spaces", async () => {
+    const testPath = "heading-over-indented.md";
+    const content = "# Real Heading\n    ## Not A Heading (4 spaces)\n";
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(1);
+    expect(headings[0]?.text).toBe("Real Heading");
+  });
+
+  test("an empty heading (bare #, no text) is still returned, with empty text", async () => {
+    const testPath = "heading-empty.md";
+    const content = "#\n## Real Heading\n### \n";
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(3);
+    expect(headings[0]).toMatchObject({ level: 1, text: "" });
+    expect(headings[1]).toMatchObject({ level: 2, text: "Real Heading" });
+    expect(headings[2]).toMatchObject({ level: 3, text: "" });
+  });
+
+  test("an optional closing sequence of #s is stripped from the heading text", async () => {
+    const testPath = "heading-closing-sequence.md";
+    const content = "## Heading ##\n### Another #####\n";
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(2);
+    expect(headings[0]?.text).toBe("Heading");
+    expect(headings[1]?.text).toBe("Another");
+  });
+
+  test("a closing-looking # run with no preceding space is kept as literal text", async () => {
+    const testPath = "heading-fake-closer.md";
+    const content = "# Heading###\n";
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const headings = await fileSystem.getNoteOutline(testPath);
+
+    expect(headings).toHaveLength(1);
+    expect(headings[0]?.text).toBe("Heading###");
+  });
+});
+
+// ============================================================================
+// READ NOTE LINES TESTS
+// ============================================================================
+
+describe("readNoteLines", () => {
+  test("reads a specific line range", async () => {
+    const testPath = "lines-test.md";
+    const content = "line 1\nline 2\nline 3\nline 4\nline 5";
+    await writeFile(join(testVaultPath, testPath), content);
+
+    const result = await fileSystem.readNoteLines({ path: testPath, startLine: 2, endLine: 4 });
+
+    expect(result).toBe("line 2\nline 3\nline 4");
+  });
+
+  test("reads a single line", async () => {
+    const testPath = "single-line.md";
+    await writeFile(join(testVaultPath, testPath), "line 1\nline 2\nline 3");
+
+    const result = await fileSystem.readNoteLines({ path: testPath, startLine: 2, endLine: 2 });
+
+    expect(result).toBe("line 2");
+  });
+
+  test("reads from line 1", async () => {
+    const testPath = "from-start.md";
+    await writeFile(join(testVaultPath, testPath), "first\nsecond\nthird");
+
+    const result = await fileSystem.readNoteLines({ path: testPath, startLine: 1, endLine: 2 });
+
+    expect(result).toBe("first\nsecond");
+  });
+
+  test("throws on path outside vault", async () => {
+    await expect(fileSystem.readNoteLines({ path: "../outside.md", startLine: 1, endLine: 1 })).rejects.toThrow();
+  });
+
+  test("clamps startLine below 1 up to line 1, instead of wrapping via negative indexing", async () => {
+    const testPath = "clamp-start.md";
+    await writeFile(join(testVaultPath, testPath), "first\nsecond\nthird");
+
+    const result = await fileSystem.readNoteLines({ path: testPath, startLine: 0, endLine: 2 });
+
+    expect(result).toBe("first\nsecond");
+  });
+
+  test("clamps endLine past EOF down to the last line", async () => {
+    const testPath = "clamp-end.md";
+    await writeFile(join(testVaultPath, testPath), "first\nsecond\nthird");
+
+    const result = await fileSystem.readNoteLines({ path: testPath, startLine: 2, endLine: 999 });
+
+    expect(result).toBe("second\nthird");
+  });
+
+  test("clamps endLine below startLine up to startLine, returning a single line", async () => {
+    const testPath = "clamp-inverted.md";
+    await writeFile(join(testVaultPath, testPath), "first\nsecond\nthird");
+
+    const result = await fileSystem.readNoteLines({ path: testPath, startLine: 3, endLine: 1 });
+
+    expect(result).toBe("third");
+  });
 });
 
 test("patch note with multiline replacement", async () => {
@@ -1046,6 +1400,68 @@ test("symlink to file outside vault is blocked", async () => {
   }
 });
 
+test("dangling file symlink cannot create a file outside the vault", async () => {
+  const outside = await mkdtemp(join(tmpdir(), "mcpvault-outside-"));
+  const target = join(outside, "new.md");
+  await symlink(target, join(testVaultPath, "link.md"));
+  await writeFile(join(testVaultPath, "source.md"), "keep");
+  try {
+    await expect(fileSystem.writeNote({ path: "link.md", content: "escape" }))
+      .rejects.toThrow(/Cannot resolve symlink/);
+    await expect(fileSystem.moveNote({ oldPath: "source.md", newPath: "link.md", overwrite: true }))
+      .rejects.toThrow(/Cannot resolve symlink/);
+    await expect(fileSystem.moveFile({
+      oldPath: "source.md", newPath: "link.md", overwrite: true,
+      confirmOldPath: "source.md", confirmNewPath: "link.md"
+    })).rejects.toThrow(/Cannot resolve symlink/);
+    await expect(readFile(target)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(join(testVaultPath, "source.md"), "utf8")).toBe("keep");
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("missing parents below an outside symlink cannot bypass the vault boundary", async () => {
+  const outside = await mkdtemp(join(tmpdir(), "mcpvault-outside-"));
+  await symlink(outside, join(testVaultPath, "linked"));
+  await writeFile(join(testVaultPath, "source.md"), "keep");
+  const newPath = "linked/new/deeper/note.md";
+  try {
+    await expect(fileSystem.writeNote({ path: newPath, content: "escape" }))
+      .rejects.toThrow(/Symlink target is outside vault/);
+    await expect(fileSystem.moveNote({ oldPath: "source.md", newPath }))
+      .rejects.toThrow(/Symlink target is outside vault/);
+    await expect(fileSystem.moveFile({
+      oldPath: "source.md", newPath,
+      confirmOldPath: "source.md", confirmNewPath: newPath
+    })).rejects.toThrow(/Symlink target is outside vault/);
+    await expect(readFile(join(outside, "new/deeper/note.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await fileSystem.exists("source.md")).toBe(true);
+    expect(await readdir(outside)).toEqual([]);
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("missing parents below a dangling directory symlink are rejected", async () => {
+  const outside = await mkdtemp(join(tmpdir(), "mcpvault-outside-"));
+  await symlink(join(outside, "absent"), join(testVaultPath, "linked"));
+  try {
+    await expect(fileSystem.writeNote({ path: "linked/new/note.md", content: "escape" }))
+      .rejects.toThrow(/Cannot resolve symlink/);
+    expect(await readdir(outside)).toEqual([]);
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("new nested paths through in-vault directory symlinks remain writable", async () => {
+  await mkdir(join(testVaultPath, "real"));
+  await symlink(join(testVaultPath, "real"), join(testVaultPath, "linked"));
+  await fileSystem.writeNote({ path: "linked/new/deeper/note.md", content: "inside" });
+  expect(await readFile(join(testVaultPath, "real/new/deeper/note.md"), "utf8")).toBe("inside");
+});
+
 test("symlink to file inside vault works", async () => {
   const content = "# Real Note\n\nThis is inside the vault.";
   await mkdir(join(testVaultPath, "deep"), { recursive: true });
@@ -1083,7 +1499,7 @@ test("broken symlink is handled gracefully", async () => {
   await symlink("/nonexistent/path/file.md", join(testVaultPath, "broken-link.md"));
 
   await expect(fileSystem.readNote("broken-link.md"))
-    .rejects.toThrow(/File not found/);
+    .rejects.toThrow(/Cannot resolve symlink/);
 });
 
 test("symlinked file outside vault is skipped in listDirectory", async () => {
@@ -1182,6 +1598,240 @@ test("move note with special chars in both paths", async () => {
 
   const note = await fileSystem.readNote(newPath);
   expect(note.content).toContain("Moving note");
+});
+
+test("move note preserves raw frontmatter when the destination parent is missing", async () => {
+  const oldPath = "A/note.md";
+  const newPath = "B/note.md";
+  const content = "---\ntitle: \"Quoted: Title\"\ntags:\n  - alpha\n  - beta\n---\n\n# Heading\n\nBody with  trailing spaces  \n";
+
+  await mkdir(join(testVaultPath, "A"), { recursive: true });
+  await writeFile(join(testVaultPath, oldPath), content);
+
+  const result = await fileSystem.moveNote({ oldPath, newPath });
+
+  expect(result.success).toBe(true);
+  expect(await readFile(join(testVaultPath, newPath), "utf-8")).toBe(content);
+  await expect(readFile(join(testVaultPath, oldPath))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+test("move note rejects a directory source without creating the destination", async () => {
+  await mkdir(join(testVaultPath, "notes"), { recursive: true });
+  await mkdir(join(testVaultPath, "note.md", "nested"), { recursive: true });
+  await writeFile(join(testVaultPath, "note.md/nested/child.md"), "inside");
+
+  const directory = await fileSystem.moveNote({
+    oldPath: "notes",
+    newPath: "created/out.md"
+  });
+  expect(directory.success).toBe(false);
+  expect(directory.message).toBe("Source path is a directory: notes. Please provide a file path.");
+  expect(await fileSystem.exists("created")).toBe(false);
+
+  const namedLikeNote = await fileSystem.moveNote({
+    oldPath: "note.md",
+    newPath: "created/out.md"
+  });
+  expect(namedLikeNote.success).toBe(false);
+  expect(namedLikeNote.message).toBe("Source path is a directory: note.md. Please provide a file path.");
+  expect(await fileSystem.exists("created")).toBe(false);
+  expect(await readFile(join(testVaultPath, "note.md/nested/child.md"), "utf-8")).toBe("inside");
+});
+
+test("move note rejects directory destinations without suggesting overwrite", async () => {
+  const source = "source-bytes";
+  await writeFile(join(testVaultPath, "source.md"), source);
+  await mkdir(join(testVaultPath, "empty-dir"));
+  await mkdir(join(testVaultPath, "folder.md/nested"), { recursive: true });
+  await writeFile(join(testVaultPath, "folder.md/nested/child.md"), "child-bytes");
+
+  for (const newPath of ["empty-dir", "folder.md"]) {
+    for (const overwrite of [false, true]) {
+      const result = await fileSystem.moveNote({
+        oldPath: "source.md",
+        newPath,
+        overwrite
+      });
+      expect(result.success).toBe(false);
+      expect(result.message).toBe(`Target path is a directory: ${newPath}. Please provide a file path.`);
+      expect(result.message).not.toContain("overwrite");
+    }
+  }
+
+  expect(await readFile(join(testVaultPath, "source.md"), "utf-8")).toBe(source);
+  expect(await fileSystem.listDirectory("empty-dir")).toEqual({ files: [], directories: [] });
+  expect(await readFile(join(testVaultPath, "folder.md/nested/child.md"), "utf-8")).toBe("child-bytes");
+});
+
+test("move note rejects the same resolved path without deleting content", async () => {
+  const content = "---\ntitle: Keep\n---\n\nKeep body\n";
+  await mkdir(join(testVaultPath, "notes"));
+  await writeFile(join(testVaultPath, "notes/keep.md"), content);
+
+  for (const newPath of ["notes/keep.md", "notes/./keep.md", "notes/../notes/keep.md"]) {
+    for (const overwrite of [false, true]) {
+      const result = await fileSystem.moveNote({ oldPath: "notes/keep.md", newPath, overwrite });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("Source and target paths are the same");
+      expect(await readFile(join(testVaultPath, "notes/keep.md"), "utf8")).toBe(content);
+    }
+  }
+});
+
+test("move note keeps regular-file collision behavior", async () => {
+  await writeFile(join(testVaultPath, "source.md"), "source-bytes");
+  await writeFile(join(testVaultPath, "target.md"), "target-bytes");
+
+  const blocked = await fileSystem.moveNote({
+    oldPath: "source.md",
+    newPath: "target.md",
+    overwrite: false
+  });
+  expect(blocked.success).toBe(false);
+  expect(blocked.message).toBe("Target file already exists: target.md. Use overwrite=true to replace it.");
+  expect(await readFile(join(testVaultPath, "source.md"), "utf-8")).toBe("source-bytes");
+  expect(await readFile(join(testVaultPath, "target.md"), "utf-8")).toBe("target-bytes");
+
+  const replaced = await fileSystem.moveNote({
+    oldPath: "source.md",
+    newPath: "target.md",
+    overwrite: true
+  });
+  expect(replaced.success).toBe(true);
+  expect(await readFile(join(testVaultPath, "target.md"), "utf-8")).toBe("source-bytes");
+  await expect(readFile(join(testVaultPath, "source.md"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+test("move note reports a missing source with the existing message", async () => {
+  const result = await fileSystem.moveNote({
+    oldPath: "missing.md",
+    newPath: "dest/missing.md"
+  });
+
+  expect(result.success).toBe(false);
+  expect(result.message).toBe("Source file not found: missing.md. Use list_directory to see available files.");
+  expect(await fileSystem.exists("dest")).toBe(false);
+});
+
+test("move note classifies EISDIR from read and write without unlinking the source", async () => {
+  const source = "source-bytes";
+  await writeFile(join(testVaultPath, "source.md"), source);
+  const eisdir = Object.assign(new Error("EISDIR: illegal operation on a directory, open"), { code: "EISDIR" });
+
+  fsFaults.readFile = eisdir;
+  try {
+    const result = await fileSystem.moveNote({
+      oldPath: "source.md",
+      newPath: "dest/note.md"
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toBe("Source path is a directory: source.md. Please provide a file path.");
+    expect(result.message).not.toContain("overwrite");
+  } finally {
+    fsFaults.readFile = undefined;
+  }
+  expect(await readFile(join(testVaultPath, "source.md"), "utf-8")).toBe(source);
+  expect(await fileSystem.exists("dest")).toBe(false);
+
+  for (const overwrite of [false, true]) {
+    fsFaults.writeFile = eisdir;
+    try {
+      const result = await fileSystem.moveNote({
+        oldPath: "source.md",
+        newPath: "dest/note.md",
+        overwrite
+      });
+      expect(result.success).toBe(false);
+      expect(result.message).toBe("Target path is a directory: dest/note.md. Please provide a file path.");
+      expect(result.message).not.toContain("overwrite");
+    } finally {
+      fsFaults.writeFile = undefined;
+    }
+  }
+  expect(await readFile(join(testVaultPath, "source.md"), "utf-8")).toBe(source);
+});
+
+test("move note classifies directory write failures without masking permission errors", async () => {
+  await writeFile(join(testVaultPath, "source.md"), "keep");
+  await mkdir(join(testVaultPath, "target"));
+
+  for (const code of ["EEXIST", "EPERM", "EACCES"]) {
+    fsFaults.writeFile = Object.assign(new Error(`${code}: write failed`), { code });
+    try {
+      const directory = await fileSystem.moveNote({ oldPath: "source.md", newPath: "target", overwrite: true });
+      expect(directory.message).toBe("Target path is a directory: target. Please provide a file path.");
+      expect(directory.success).toBe(false);
+
+      const missing = await fileSystem.moveNote({ oldPath: "source.md", newPath: "missing.md" });
+      expect(missing.success).toBe(false);
+      expect(missing.message).not.toContain("is a directory");
+      if (code !== "EEXIST") {
+        expect(missing.message).toBe(`Failed to move note: ${code}: write failed`);
+      }
+    } finally {
+      fsFaults.writeFile = undefined;
+    }
+  }
+  expect(await readFile(join(testVaultPath, "source.md"), "utf8")).toBe("keep");
+});
+
+test("move note keeps unrelated I/O errors from being classified as directories", async () => {
+  const source = "source-bytes";
+  await writeFile(join(testVaultPath, "source.md"), source);
+  const eio = Object.assign(
+    new Error("directory scan hit a transient input/output error"),
+    { code: "EIO" }
+  );
+  fsFaults.readFile = eio;
+  try {
+    const result = await fileSystem.moveNote({
+      oldPath: "source.md",
+      newPath: "dest/note.md"
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toBe(
+      "Failed to move note: directory scan hit a transient input/output error"
+    );
+    expect(result.message).not.toContain("Please provide a file path");
+  } finally {
+    fsFaults.readFile = undefined;
+  }
+  expect(await readFile(join(testVaultPath, "source.md"), "utf-8")).toBe(source);
+  expect(await fileSystem.exists("dest")).toBe(false);
+});
+
+test("move note rejects restricted paths and traversal before moving files", async () => {
+  await mkdir(join(testVaultPath, ".obsidian"), { recursive: true });
+  await writeFile(join(testVaultPath, ".obsidian/secret.md"), "secret");
+  await writeFile(join(testVaultPath, "visible.md"), "visible");
+
+  const fromObsidian = await fileSystem.moveNote({
+    oldPath: ".obsidian/secret.md",
+    newPath: "stolen.md"
+  });
+  expect(fromObsidian.success).toBe(false);
+  expect(fromObsidian.message).toContain("Access denied: .obsidian/secret.md");
+  expect(await readFile(join(testVaultPath, ".obsidian/secret.md"), "utf-8")).toBe("secret");
+  expect(await fileSystem.exists("stolen.md")).toBe(false);
+
+  const toGit = await fileSystem.moveNote({
+    oldPath: "visible.md",
+    newPath: ".git/visible.md"
+  });
+  expect(toGit.success).toBe(false);
+  expect(toGit.message).toContain("Access denied: .git/visible.md");
+  expect(await readFile(join(testVaultPath, "visible.md"), "utf-8")).toBe("visible");
+
+  await expect(fileSystem.moveNote({
+    oldPath: "../outside.md",
+    newPath: "inside.md"
+  })).rejects.toThrow(/Path traversal not allowed/);
+
+  await expect(fileSystem.moveNote({
+    oldPath: "visible.md",
+    newPath: "../outside.md"
+  })).rejects.toThrow(/Path traversal not allowed/);
+  expect(await readFile(join(testVaultPath, "visible.md"), "utf-8")).toBe("visible");
 });
 
 test("move_file moves binary files without corruption", async () => {

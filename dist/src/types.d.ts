@@ -128,6 +128,16 @@ export interface TagManagementResult {
     success: boolean;
     message?: string;
 }
+export interface NoteHeading {
+    level: number;
+    text: string;
+    line: number;
+}
+export interface ReadNoteLinesParams {
+    path: string;
+    startLine: number;
+    endLine: number;
+}
 export interface VaultStats {
     totalNotes: number;
     totalFolders: number;

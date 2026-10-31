@@ -1,4 +1,4 @@
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { FileSystemService } from '../filesystem.js';
 export interface WikiLinkToolArgs {
     document: string;

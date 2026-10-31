@@ -1,0 +1,403 @@
+/* Benchmarks page (/benchmarks/). Ported from the Astro/Tailwind version:
+ * minor-third type scale off the 16px body, glassy cards, median-scaled
+ * bars with a grow-in animation driven by .in-view (bench-reveal client
+ * module). */
+
+.bench-section {
+  padding: 0 1rem 2rem;
+}
+
+.bench-hero {
+  padding-top: 7rem;
+}
+
+.bench-faq {
+  padding-bottom: 4rem;
+}
+
+.bench-container {
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.bench-hero h1 {
+  font-size: 2.074rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--color-foreground);
+  margin: 0 0 1rem;
+}
+
+.bench-hero p,
+.bench-prose p,
+.bench-prose li,
+.bench-faq p {
+  color: var(--color-muted-foreground);
+  line-height: 1.65;
+  max-width: 48rem;
+}
+
+.bench-hero p {
+  margin: 0 0 1rem;
+}
+
+.bench-hero a,
+.bench-prose a {
+  color: #a78bfa;
+  text-decoration: underline;
+  text-decoration-color: rgba(167, 139, 250, 0.5);
+  text-underline-offset: 0.15em;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
+}
+
+.bench-hero a:hover,
+.bench-prose a:hover {
+  color: #c4b5fd;
+  text-decoration-color: #c4b5fd;
+}
+
+.bench-hero strong,
+.bench-prose strong,
+.bench-faq strong {
+  color: var(--color-foreground);
+  font-weight: 600;
+}
+
+.bench-tldr {
+  margin-top: 1.5rem;
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  border-radius: 0.75rem;
+  background: rgba(23, 23, 23, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 1.25rem;
+}
+
+.bench-tldr-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #a78bfa;
+  margin: 0 0 0.5rem;
+}
+
+.bench-tldr p:last-child {
+  margin: 0;
+  color: var(--color-foreground);
+}
+
+/* Charts */
+
+.bench-charts > * + * {
+  margin-top: 2rem;
+}
+
+.bench-card {
+  margin: 0;
+  border: 1px solid rgba(38, 38, 38, 0.5);
+  border-radius: 0.75rem;
+  background: rgba(23, 23, 23, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 1rem 1.25rem;
+}
+
+.bench-card figcaption {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+  margin-bottom: 0.75rem;
+}
+
+.bench-unit {
+  font-weight: 400;
+  color: var(--color-muted-foreground);
+  font-size: 0.875rem;
+}
+
+.bench-group-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+  margin: 0 0 0.75rem;
+}
+
+.bench-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .bench-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .bench-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.bench-row {
+  display: grid;
+  grid-template-columns: 9.5rem 1fr 3.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.bench-card-compact .bench-row {
+  grid-template-columns: 8.5rem 1fr;
+  gap: 0.5rem;
+}
+
+.bench-label {
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+}
+
+.bench-card-compact .bench-label {
+  font-size: 0.6875rem;
+}
+
+.bench-track {
+  position: relative;
+  height: 1.25rem;
+  background: rgba(148, 163, 184, 0.07);
+  border-radius: 0 0.25rem 0.25rem 0;
+}
+
+.bench-bar {
+  position: absolute;
+  top: 0.125rem;
+  height: 1rem;
+  border-radius: 0 0.25rem 0.25rem 0;
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+
+.bench-card.in-view .bench-bar {
+  animation: bench-grow 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes bench-grow {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bench-bar {
+    transform: none;
+  }
+
+  .bench-card.in-view .bench-bar {
+    animation: none;
+  }
+}
+
+.bench-value {
+  text-align: right;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted-foreground);
+}
+
+.bench-axis {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--color-border);
+  margin-top: 0.5rem;
+  padding-top: 0.25rem;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(163, 163, 163, 0.7);
+}
+
+.bench-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  border-top: 1px solid var(--color-border);
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  font-size: 0.6875rem;
+  color: var(--color-muted-foreground);
+}
+
+.bench-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.bench-chip-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-foreground);
+}
+
+.bench-chip-unit {
+  margin-left: auto;
+}
+
+.bench-swatch {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 0.125rem;
+  flex-shrink: 0;
+}
+
+.bench-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--color-muted-foreground);
+}
+
+.bench-legend-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.bench-legend-item .bench-swatch {
+  width: 0.625rem;
+  height: 0.625rem;
+  margin-top: 0.3rem;
+}
+
+.bench-legend strong {
+  color: var(--color-foreground);
+  font-weight: 600;
+}
+
+/* Full-numbers table + FAQ share the glassy details card. */
+
+.bench-table-details,
+.bench-faq-list details {
+  border: 1px solid rgba(38, 38, 38, 0.5);
+  border-radius: 0.75rem;
+  background: rgba(23, 23, 23, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 0.75rem 1rem;
+}
+
+.bench-table-details summary,
+.bench-faq-list summary {
+  cursor: pointer;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+  list-style: none;
+}
+
+.bench-table-details summary::-webkit-details-marker,
+.bench-faq-list summary::-webkit-details-marker {
+  display: none;
+}
+
+.bench-table-scroll {
+  margin-top: 0.75rem;
+  overflow-x: auto;
+}
+
+.bench-table-scroll table {
+  width: 100%;
+  min-width: 34rem;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.bench-table-scroll th {
+  padding: 0.5rem 1rem 0.5rem 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted-foreground);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.bench-table-scroll td {
+  padding: 0.5rem 1rem 0.5rem 0;
+  color: var(--color-muted-foreground);
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid rgba(38, 38, 38, 0.6);
+}
+
+.bench-table-scroll td:first-child {
+  color: var(--color-foreground);
+  font-variant-numeric: normal;
+}
+
+.bench-table-scroll tr:last-child td {
+  border-bottom: none;
+}
+
+/* Prose sections */
+
+.bench-prose > div + div {
+  margin-top: 1.5rem;
+}
+
+.bench-prose h2,
+.bench-faq h2 {
+  font-size: 1.44rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+  margin: 0 0 0.75rem;
+}
+
+.bench-prose p {
+  margin: 0 0 1rem;
+}
+
+.bench-prose p:last-child {
+  margin-bottom: 0;
+}
+
+.bench-prose ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bench-prose code {
+  font-family: "JetBrains Mono", "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.85em;
+  padding: 0.14em 0.42em;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 0.45rem;
+  background: rgba(148, 163, 184, 0.1);
+}
+
+/* Skeptics FAQ */
+
+.bench-faq-intro {
+  margin: 0 0 1rem;
+}
+
+.bench-faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bench-faq-list details {
+  padding: 1.25rem;
+}
+
+.bench-faq-list details p {
+  margin: 0.75rem 0 0;
+}

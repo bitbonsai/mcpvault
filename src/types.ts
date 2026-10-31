@@ -155,6 +155,19 @@ export interface TagManagementResult {
   message?: string;
 }
 
+// Outline types
+export interface NoteHeading {
+  level: number;
+  text: string;
+  line: number;
+}
+
+export interface ReadNoteLinesParams {
+  path: string;
+  startLine: number;
+  endLine: number;
+}
+
 // Vault statistics types
 export interface VaultStats {
   totalNotes: number;

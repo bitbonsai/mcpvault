@@ -1,0 +1,669 @@
+/*
+ * Global tokens, reset, and the shared page shell (Nav, Footer,
+ * ThemeToggle, background watermark, skip link). Route-specific styles
+ * live in one stylesheet per route (home.css, install.css, ...); this file
+ * is the only stylesheet loaded on every page.
+ *
+ * Convention: every component has a unique `data-component` root, and every
+ * selector for that component is rooted under it, e.g.
+ * `[data-component="nav"] .nav-link`. Page-only selectors are rooted under
+ * a `[data-page="..."]` attribute set on <body> by Layout.
+ */
+
+:root {
+  --color-background: #0a0a0a;
+  --color-foreground: #fafafa;
+  --color-muted: #404040;
+  --color-muted-foreground: #a3a3a3;
+  --color-accent: #7c3aed;
+  --color-accent-2: #06b6d4;
+  --color-card: #171717;
+  --color-border: #262626;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/*
+ * Native cross-document View Transitions (Phase 3 item 3). Every page is a
+ * normal multi-page navigation (no SPA router); this at-rule just asks the
+ * browser to animate the swap between old/new documents automatically. No
+ * `::view-transition-*` pseudo-element overrides are added -- the browser's
+ * default crossfade is enough and keeps this from becoming a redesign.
+ *
+ * Reduced-motion fallback: nested under `@media not (prefers-reduced-motion:
+ * reduce)` so a user who asked for reduced motion never gets `@view-transition`
+ * declared at all, which is the documented way to opt a reduced-motion user
+ * out entirely (not just "instant" -- the browser falls back to its normal,
+ * transition-free navigation). Browsers without View Transitions support
+ * ignore the whole at-rule and navigate normally either way.
+ */
+@media not (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: auto;
+  }
+}
+
+html {
+  background-color: var(--color-background);
+  font-size: 16px;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  padding-top: 4rem; /* nav is fixed/floating above content */
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+}
+
+a {
+  color: inherit;
+}
+
+/* GFM-style inline code, scoped away from fenced code blocks and terminals. */
+:where(p, li, td, dd, figcaption) > code {
+  padding: 0.14em 0.42em;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 0.45rem;
+  background: rgba(148, 163, 184, 0.1);
+  color: rgba(226, 232, 240, 0.96);
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* -------------------------------------------------------------------- */
+/* Skip link                                                            */
+/* -------------------------------------------------------------------- */
+
+[data-component="skip-link"] {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 10000;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(10, 10, 10, 0.95);
+  color: #ffffff;
+  text-decoration: none;
+  transform: translateY(-150%);
+  transition: transform 0.2s ease;
+}
+
+[data-component="skip-link"]:focus {
+  transform: translateY(0);
+  outline: 2px solid rgba(139, 92, 246, 0.7);
+  outline-offset: 2px;
+}
+
+#main-content {
+  scroll-margin-top: 6rem;
+}
+
+/* -------------------------------------------------------------------- */
+/* Shared scroll-reveal utility                                         */
+/* -------------------------------------------------------------------- */
+
+/*
+ * `.fade-in-on-scroll` / `@keyframes fade-in-up` are the one deliberate
+ * exception to this file's "every selector is rooted under a
+ * data-component" convention: features.css, install.css, demo.css,
+ * skill.css, and how-it-works.css each used to carry their own byte-for-byte
+ * copy of this exact rule (an unrooted global class, matching the Astro
+ * source's own unrooted `.fade-in-on-scroll` convention across
+ * ComparisonTable/FeatureGrid/HowItWorks/SkillsContent), so it is
+ * centralized here once instead of staying duplicated five times.
+ *
+ * The animation only plays once `fade-in-observer.ts` (plain JS, not
+ * Alpine -- see that file) adds `.is-visible` after the element scrolls
+ * into view. That gating class is new: the duplicated per-page rules this
+ * replaces played `animation: fade-in-up ... forwards` unconditionally, so
+ * every element animated on page load regardless of scroll position --
+ * `.fade-in-on-scroll` and `.is-visible` were never actually wired
+ * together anywhere in this app. See `fade-in-observer.ts` for the fuller
+ * story, including how production has the same disconnect.
+ *
+ * `.fade-in-done` (added by `fade-in-observer.ts`'s `reveal()` once
+ * `animationend` fires) is the actual fix for a second bug `fade-in-
+ * observer.ts` documents in full: `animation-fill-mode: forwards` never
+ * detaches the animation, so any glass card *nested inside* a `.fade-in-
+ * on-scroll` wrapper (as opposed to carrying `.fade-in-on-scroll` itself)
+ * had its `backdrop-filter` silently blocked forever, even though the
+ * keyframe's `to` value below is `none`, not `translateY(0)` -- confirmed
+ * visually (a bright pattern behind the page rendered crisp, unblurred,
+ * through those cards) after the `translateY(0)`-to-`none` fix alone,
+ * which only ever helped the same-element case. `fade-in-done` fully
+ * detaches the animation via `animation: none` (three-class selector, so
+ * it wins regardless of source order against the two-class `.is-visible`
+ * rule) while keeping the settled state as a plain, non-animated style.
+ */
+.fade-in-on-scroll {
+  opacity: 0;
+  transform: translateY(1rem);
+}
+
+.fade-in-on-scroll.is-visible {
+  animation: fade-in-up 0.6s ease-out forwards;
+}
+
+.fade-in-on-scroll.is-visible.fade-in-done {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(2rem);
+  }
+  to {
+    opacity: 1;
+    /* Must end at `none`, not translateY(0): `forwards` retains this value,
+       and ANY retained transform (identity included) silently disables
+       backdrop-filter on every descendant — which would kill the glass-card
+       blur in all fade-in sections the moment they scroll into view. Fixes
+       the same-element case (a card that carries `.fade-in-on-scroll`
+       itself); `.fade-in-done` above fixes the wrapper case. */
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in-on-scroll {
+    opacity: 1;
+    transform: none;
+  }
+
+  .fade-in-on-scroll.is-visible {
+    animation: none;
+  }
+}
+
+/* -------------------------------------------------------------------- */
+/* App shell / background watermark                                     */
+/* -------------------------------------------------------------------- */
+
+[data-component="app-shell"] {
+  position: relative;
+  z-index: 10;
+}
+
+[data-component="background-watermark"] {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+[data-component="background-watermark"] .glow {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.15;
+  filter: blur(20px);
+}
+
+[data-component="background-watermark"] .mark {
+  width: 80vh;
+  height: 80vh;
+}
+
+/* -------------------------------------------------------------------- */
+/* Nav                                                                   */
+/* -------------------------------------------------------------------- */
+
+[data-component="nav"] {
+  position: fixed;
+  top: 0;
+  z-index: 9999;
+  width: 100%;
+  /* Glass nav (maintainer request): translucent + backdrop blur. */
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+[data-component="nav"] .nav-inner {
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+}
+
+[data-component="nav"] .nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+[data-component="nav"] .logo-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+[data-component="nav"] .logo-link:hover .logo-text {
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+[data-component="nav"] .logo-icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-component="nav"] .logo-text {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+
+[data-component="nav"] .version-badge {
+  display: none;
+  align-items: center;
+  padding: 0.125rem 0.375rem;
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  font-weight: 500;
+  line-height: 1.1;
+  color: #ffffff;
+  background: rgba(124, 58, 237, 0.2);
+  border: 1px solid rgba(124, 58, 237, 0.3);
+}
+
+[data-component="nav"] .nav-links {
+  display: none;
+  align-items: center;
+  /* Scale the gap down before items would clip: every item must stay
+     visible at any width; labels truncate (ellipsis) before the row
+     overflows. */
+  gap: clamp(0.25rem, 2vw, 2rem);
+  min-width: 0;
+}
+
+[data-component="nav"] .nav-link {
+  position: relative;
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding: 0.5rem clamp(0.25rem, 1vw, 1rem);
+}
+
+/* Responsive label swap: "How It Works" renders both a full and a short
+   ("How") span; between the mobile-menu breakpoint and a comfortable
+   desktop width only the short one shows, so every nav item stays fully
+   visible with no truncation artifacts and nothing ever clips. */
+[data-component="nav"] .nav-label-short {
+  display: none;
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  [data-component="nav"] .nav-links .nav-label-full {
+    display: none;
+  }
+
+  [data-component="nav"] .nav-links .nav-label-short {
+    display: inline;
+  }
+}
+
+[data-component="nav"] .nav-link:hover {
+  color: rgba(255, 255, 255, 1);
+  text-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
+  box-shadow:
+    0 0 20px rgba(139, 92, 246, 0.3),
+    inset 0 0 20px rgba(139, 92, 246, 0.1);
+  background: rgba(139, 92, 246, 0.1);
+  transform: translateY(-1px);
+}
+
+[data-component="nav"] .nav-link-active {
+  color: rgba(255, 255, 255, 1);
+  background: rgba(139, 92, 246, 0.15);
+  text-shadow: 0 0 6px rgba(139, 92, 246, 0.4);
+}
+
+[data-component="nav"] .nav-link-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+[data-component="nav"] .nav-badge-new {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.375rem;
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1.1;
+  color: #ffffff;
+  background: var(--color-accent);
+  border: 1px solid rgba(124, 58, 237, 0.5);
+}
+
+[data-component="nav"] .nav-icon-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+[data-component="nav"] .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+[data-component="nav"] .mobile-menu-button {
+  display: inline-flex;
+  padding: 0.5rem;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+}
+
+[data-component="nav"] .mobile-menu-button .icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+[data-component="nav"] .mobile-menu {
+  position: fixed;
+  top: 60px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9998;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+}
+
+[data-component="nav"] .mobile-menu[hidden] {
+  display: none;
+}
+
+[data-component="nav"] .mobile-menu-inner {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+[data-component="nav"] .mobile-menu .nav-link {
+  display: block;
+  text-align: center;
+  font-size: 1.125rem;
+}
+
+[data-component="nav"] .mobile-menu .nav-icon-link {
+  justify-content: center;
+}
+
+@media (min-width: 640px) {
+  [data-component="nav"] .version-badge {
+    display: inline-flex;
+  }
+}
+
+@media (min-width: 768px) {
+  [data-component="nav"] .nav-links {
+    display: flex;
+  }
+
+  [data-component="nav"] .mobile-menu-button {
+    display: none;
+  }
+}
+
+/* -------------------------------------------------------------------- */
+/* Footer                                                                */
+/* -------------------------------------------------------------------- */
+
+/* Gutters match Footer.astro's `px-4 sm:px-6 lg:px-8`, not a fixed 1rem. */
+[data-component="footer"] {
+  position: relative;
+  padding: 4rem 1rem;
+  background: linear-gradient(to top, rgba(23, 23, 23, 0.2), var(--color-background));
+  border-top: 1px solid rgba(38, 38, 38, 0.5);
+}
+
+@media (min-width: 640px) {
+  [data-component="footer"] {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-component="footer"] {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+[data-component="footer"] .footer-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+[data-component="footer"] .footer-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+
+[data-component="footer"] .footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+[data-component="footer"] .footer-logo-icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-component="footer"] .footer-brand-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+
+[data-component="footer"] .footer-tagline {
+  max-width: 32rem;
+  margin: 0 0 1.5rem;
+  color: var(--color-muted-foreground);
+}
+
+[data-component="footer"] .footer-links-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+[data-component="footer"] .footer-icon-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-muted-foreground);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+[data-component="footer"] .footer-icon-link:hover {
+  color: var(--color-foreground);
+}
+
+[data-component="footer"] .footer-icon-link .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+[data-component="footer"] .footer-icon-link .label {
+  font-size: 0.875rem;
+}
+
+[data-component="footer"] h3 {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-foreground);
+}
+
+[data-component="footer"] .footer-link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+[data-component="footer"] .footer-link-list a {
+  color: var(--color-muted-foreground);
+  text-decoration: none;
+  font-size: 0.875rem;
+  transition: color 0.2s ease;
+}
+
+[data-component="footer"] .footer-link-list a:hover {
+  color: var(--color-foreground);
+}
+
+[data-component="footer"] .footer-bottom {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(38, 38, 38, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+[data-component="footer"] .footer-copyright,
+[data-component="footer"] .footer-credit {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-muted-foreground);
+}
+
+[data-component="footer"] .footer-stack-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+[data-component="footer"] .footer-stack-link:hover {
+  color: var(--color-foreground);
+}
+
+@media (min-width: 768px) {
+  [data-component="footer"] .footer-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  [data-component="footer"] .footer-brand-col {
+    grid-column: span 2;
+  }
+
+  [data-component="footer"] .footer-bottom {
+    flex-direction: row;
+  }
+}
+
+/* -------------------------------------------------------------------- */
+/* Theme toggle (markup ported now; Alpine wiring lands in Phase 3)      */
+/* -------------------------------------------------------------------- */
+
+[data-component="theme-toggle"] {
+  position: relative;
+  width: 3.5rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 9999px;
+  border: 1px solid rgba(38, 38, 38, 0.5);
+  background: rgba(23, 23, 23, 0.5);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition: border-color 0.3s ease;
+}
+
+[data-component="theme-toggle"]:hover {
+  border-color: rgba(124, 58, 237, 0.5);
+}
+
+[data-component="theme-toggle"]:focus-visible {
+  outline: 2px solid rgba(124, 58, 237, 0.5);
+  outline-offset: 2px;
+}
+
+[data-component="theme-toggle"] .slider {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background: var(--color-foreground);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: left 0.3s ease;
+}
+
+[data-component="theme-toggle"][data-theme="light"] .slider {
+  left: 1.75rem;
+}
+
+[data-component="theme-toggle"] .slider .icon {
+  width: 0.75rem;
+  height: 0.75rem;
+  color: var(--color-background);
+}
+
+[data-component="theme-toggle"] .slider .icon.hidden {
+  display: none;
+}
+
+[data-component="theme-toggle"] .sr-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}

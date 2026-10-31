@@ -1,0 +1,519 @@
+/*
+ * Demo page ("/demo/"). Ported from demo.astro plus the Tailwind utility
+ * classes of `InteractiveDemo.tsx`/`ResponseRenderer.tsx` (React,
+ * `client:visible` in the Astro source -- neither component carried a
+ * scoped Astro <style> block, only Tailwind utilities).
+ *
+ * Convention: the section has a `data-component="interactive-demo"` root
+ * (matching shared.css); every selector below is rooted under it.
+ *
+ * Per the plan ("Phase 2, group 7 -- demo shell and response examples,
+ * leaving interactivity for Phase 3"), every example panel is rendered
+ * (`InteractiveDemo.tsx`), and only the first (`.demo-panel.hidden` on the
+ * rest) is visible without JavaScript -- same `.hidden` convention as
+ * `install.css`'s `.config-content.hidden`. Tab-switching and the
+ * "AI is thinking..." typing-delay state (Phase 3, Alpine) now toggle that
+ * same class reactively via `x-show`; `.demo-typing` (the bouncing-dots
+ * indicator) uses the identical no-JS-safe `.hidden` convention, since a
+ * visitor without JS can never trigger `isTyping` in the first place.
+ *
+ * The Astro source's `gradient-text` class on the heading is dropped here,
+ * same precedent as FeatureGrid/FAQ/ComparisonTable/HowItWorks/SkillsContent.
+ *
+ * `.fade-in-on-scroll`/`@keyframes fade-in-up` moved to shared.css (Phase 3),
+ * same as features.css/install.css -- see features.css's comment.
+ */
+
+/* ---------------------------------------------------------------------- */
+/* Section shell                                                         */
+/* ---------------------------------------------------------------------- */
+
+[data-component="interactive-demo"] {
+  position: relative;
+  padding: 6rem 1rem;
+  background: linear-gradient(to bottom, var(--color-background), rgba(23, 23, 23, 0.2));
+}
+
+@media (min-width: 640px) {
+  [data-component="interactive-demo"] {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-component="interactive-demo"] {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+[data-component="interactive-demo"] .demo-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Header                                                                 */
+/* ---------------------------------------------------------------------- */
+
+[data-component="interactive-demo"] .demo-header {
+  text-align: center;
+  margin-bottom: 4rem;
+}
+
+[data-component="interactive-demo"] .demo-title {
+  font-size: 2.25rem;
+  line-height: 2.5rem;
+  font-weight: 700;
+  color: var(--color-foreground);
+  margin: 0 0 1.5rem;
+}
+
+@media (min-width: 640px) {
+  [data-component="interactive-demo"] .demo-title {
+    font-size: 3rem;
+    line-height: 1;
+  }
+}
+
+[data-component="interactive-demo"] .demo-lede {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  color: var(--color-muted-foreground);
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Tabs                                                                   */
+/* ---------------------------------------------------------------------- */
+
+[data-component="interactive-demo"] .demo-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+[data-component="interactive-demo"] .demo-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  background: rgba(23, 23, 23, 0.5);
+  color: var(--color-muted-foreground);
+  border: 1px solid rgba(38, 38, 38, 0.5);
+}
+
+[data-component="interactive-demo"] .demo-tab:hover {
+  color: var(--color-foreground);
+  background: var(--color-card);
+}
+
+[data-component="interactive-demo"] .demo-tab.active {
+  background: var(--color-accent);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow:
+    0 10px 15px -3px rgba(124, 58, 237, 0.25),
+    0 4px 6px -2px rgba(124, 58, 237, 0.25);
+}
+
+[data-component="interactive-demo"] .demo-tab .icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+[data-component="interactive-demo"] .demo-tab-label {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  [data-component="interactive-demo"] .demo-tab-label {
+    display: inline;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Chat window                                                            */
+/* ---------------------------------------------------------------------- */
+
+[data-component="interactive-demo"] .demo-window {
+  background: rgba(23, 23, 23, 0.3);
+  backdrop-filter: blur(24px);
+  border-radius: 1rem;
+  border: 1px solid rgba(38, 38, 38, 0.5);
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+[data-component="interactive-demo"] .demo-window-header {
+  background: rgba(23, 23, 23, 0.5);
+  border-bottom: 1px solid rgba(38, 38, 38, 0.5);
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+[data-component="interactive-demo"] .demo-window-dots {
+  display: flex;
+  gap: 0.5rem;
+}
+
+[data-component="interactive-demo"] .demo-window-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 9999px;
+}
+
+[data-component="interactive-demo"] .demo-window-dot--red {
+  background: #ef4444;
+}
+
+[data-component="interactive-demo"] .demo-window-dot--yellow {
+  background: #f59e0b;
+}
+
+[data-component="interactive-demo"] .demo-window-dot--green {
+  background: #22c55e;
+}
+
+[data-component="interactive-demo"] .demo-window-title {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--color-muted-foreground);
+}
+
+[data-component="interactive-demo"] .demo-window-status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+[data-component="interactive-demo"] .demo-window-status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--color-success);
+  animation: demo-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes demo-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+[data-component="interactive-demo"] .demo-window-status-text {
+  font-size: 0.875rem;
+  color: var(--color-success);
+  font-weight: 500;
+}
+
+[data-component="interactive-demo"] .hidden {
+  display: none;
+}
+
+/* `.demo-window-body` wraps whichever single example panel is currently
+   visible (every other panel is `.hidden`/`display: none`). Its rendered
+   height is entirely the active panel's content height, which changes
+   twice per playback: once when the typing indicator is replaced by the
+   AI response + Technical Details block, and once on tab switch. `height:
+   auto` can't itself be transitioned across browsers, so `interactive-demo
+   .ts` measures `scrollHeight` and sets an explicit pixel height on this
+   element (see `growToContent`) -- this rule is what makes that pixel
+   change animate instead of jump. `overflow: hidden` clips during the
+   transition; it's also what lets `scrollHeight` report the *new*
+   content's full height while this element's own height is still frozen
+   at the *old* pixel value, which is the trick that makes measuring after
+   the DOM has already changed, but before un-freezing the height, work. */
+[data-component="interactive-demo"] .demo-window-body {
+  overflow: hidden;
+  transition: height 300ms ease-out;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Messages                                                               */
+/* ---------------------------------------------------------------------- */
+
+[data-component="interactive-demo"] .demo-messages {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+[data-component="interactive-demo"] .demo-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+[data-component="interactive-demo"] .demo-avatar {
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-background);
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+
+[data-component="interactive-demo"] .demo-avatar--user {
+  background: var(--color-accent);
+}
+
+[data-component="interactive-demo"] .demo-avatar--ai {
+  background: var(--color-accent-2);
+}
+
+[data-component="interactive-demo"] .demo-bubble {
+  flex: 1;
+  min-width: 0;
+  background: rgba(10, 10, 10, 0.5);
+  border-radius: 1rem 1rem 1rem 0;
+  padding: 1rem;
+  border: 1px solid rgba(38, 38, 38, 0.3);
+}
+
+[data-component="interactive-demo"] .demo-bubble--ai {
+  background: rgba(23, 23, 23, 0.2);
+}
+
+[data-component="interactive-demo"] .demo-bubble-text {
+  color: var(--color-foreground);
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Typing indicator (Alpine `isTyping` state, Phase 3)                    */
+/* ---------------------------------------------------------------------- */
+
+[data-component="interactive-demo"] .demo-typing {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-muted-foreground);
+}
+
+/* `.hidden` (`display: none`, defined above under "Chat window") and
+   `.demo-typing` (`display: flex`, this block) are equal-specificity
+   single-class selectors; `.demo-typing` comes later in this file, so its
+   `display: flex` won the cascade whenever Alpine put both classes on the
+   same element (`isTyping` flipping back to `false`) -- the typing
+   indicator stayed visibly on screen, overlapping the just-revealed
+   response, instead of disappearing. This two-class selector is more
+   specific than either single-class rule, so it wins regardless of source
+   order. */
+[data-component="interactive-demo"] .demo-typing.hidden {
+  display: none;
+}
+
+[data-component="interactive-demo"] .demo-typing-dots {
+  display: flex;
+  gap: 0.25rem;
+}
+
+[data-component="interactive-demo"] .demo-typing-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--color-accent-2);
+  animation: demo-typing-bounce 1.4s infinite;
+}
+
+@keyframes demo-typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-0.25rem);
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Response rendering (ResponseRenderer.tsx)                              */
+/* ---------------------------------------------------------------------- */
+
+[data-component="interactive-demo"] .demo-response-text {
+  margin: 0;
+  color: var(--color-foreground);
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.625;
+}
+
+[data-component="interactive-demo"] .demo-response-code {
+  margin: 0.5rem 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: rgba(30, 30, 46, 0.47);
+}
+
+[data-component="interactive-demo"] .demo-response-code pre {
+  margin: 0;
+  border-radius: 0;
+  font-size: 0.875rem;
+  background: transparent !important;
+  padding: 1rem;
+  overflow: auto;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Technical details                                                     */
+/* ---------------------------------------------------------------------- */
+
+[data-component="interactive-demo"] .demo-details {
+  background: rgba(10, 10, 10, 0.3);
+  border-top: 1px solid rgba(38, 38, 38, 0.5);
+  padding: 1.5rem;
+}
+
+[data-component="interactive-demo"] .demo-details-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+  margin: 0 0 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+[data-component="interactive-demo"] .demo-details-icon {
+  width: 1rem;
+  height: 1rem;
+  color: var(--color-accent);
+}
+
+[data-component="interactive-demo"] .demo-details-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  [data-component="interactive-demo"] .demo-details-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+[data-component="interactive-demo"] .demo-detail {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--color-muted-foreground);
+}
+
+[data-component="interactive-demo"] .demo-detail-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+  color: var(--color-success);
+}
+
+/* ---------------------------------------------------------------------- */
+/* CTA                                                                    */
+/* ---------------------------------------------------------------------- */
+
+[data-component="interactive-demo"] .demo-cta {
+  text-align: center;
+  margin-top: 3rem;
+}
+
+[data-component="interactive-demo"] .demo-cta-text {
+  color: var(--color-muted-foreground);
+  margin: 0 0 1.5rem;
+}
+
+[data-component="interactive-demo"] .demo-cta-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 2rem;
+  border-radius: 0.75rem;
+  background: var(--color-accent);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 1.125rem;
+  text-decoration: none;
+  transition: transform 0.3s, box-shadow 0.3s, background-color 0.3s;
+}
+
+[data-component="interactive-demo"] .demo-cta-link:hover {
+  background: rgba(124, 58, 237, 0.9);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.6);
+  transform: translateY(-0.25rem) scale(1.05);
+}
+
+[data-component="interactive-demo"] .demo-cta-link .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #ffffff;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Responsive adjustments                                                 */
+/* ---------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  [data-component="interactive-demo"] .demo-tab {
+    font-size: 0.8rem;
+    padding: 0.625rem 0.875rem;
+  }
+
+  [data-component="interactive-demo"] .demo-window-header {
+    padding: 0.75rem;
+  }
+
+  [data-component="interactive-demo"] .demo-messages {
+    padding: 1rem;
+  }
+
+  [data-component="interactive-demo"] .demo-details {
+    padding: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* `.fade-in-on-scroll` itself is covered by shared.css's global
+     reduced-motion override now; only this page's own animated elements
+     need a local one. */
+  [data-component="interactive-demo"] .demo-window-status-dot {
+    animation: none;
+  }
+
+  [data-component="interactive-demo"] .demo-typing-dot {
+    animation: none;
+  }
+
+  [data-component="interactive-demo"] .demo-window-body {
+    transition: none;
+  }
+}
+
+/* Demo-only: conversation playback changes page height, which makes the
+   scrollbar appear/disappear and shifts the layout. Reserving the gutter
+   keeps viewport width stable. An html rule is safe here because demo.css
+   is only ever loaded by the demo page. */
+html {
+  scrollbar-gutter: stable;
+}

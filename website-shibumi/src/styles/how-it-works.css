@@ -1,0 +1,364 @@
+/*
+ * How It Works page ("/how-it-works/"). Ported from how-it-works.astro
+ * plus the Tailwind utility classes and scoped <style> block of
+ * HowItWorks.astro.
+ *
+ * Convention: the section has a `data-component="how-it-works"` root
+ * (matching shared.css); every selector below is rooted under it.
+ *
+ * `.fade-in-on-scroll`/`@keyframes fade-in-up` moved to shared.css (Phase 3)
+ * -- see features.css's comment. This page kept its own longer 0.8s/2rem
+ * variant (matching the Astro source's HowItWorks.astro exactly), so it
+ * overrides shared.css's defaults below, rooted under this page's own
+ * component, same pattern as skill.css.
+ *
+ * The Astro source's `gradient-text` class (a global Tailwind `@apply`
+ * text-clip gradient) is dropped here, same precedent as
+ * FeatureGrid/FAQ/ComparisonTable's ported headings: only `hero.gradient-text`
+ * (home.css) carries the actual gradient-clip effect; every other page that
+ * referenced the class in the Astro source rendered it as plain foreground
+ * text in this port.
+ */
+
+[data-component="how-it-works"] .fade-in-on-scroll {
+  transform: translateY(2rem);
+}
+
+[data-component="how-it-works"] .fade-in-on-scroll.is-visible {
+  animation-duration: 0.8s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="how-it-works"] .fade-in-on-scroll {
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Section shell                                                         */
+/* ---------------------------------------------------------------------- */
+
+[data-component="how-it-works"] {
+  position: relative;
+  padding: 6rem 1rem;
+  background: linear-gradient(to bottom, var(--color-background), rgba(23, 23, 23, 0.05), var(--color-background));
+}
+
+@media (min-width: 640px) {
+  [data-component="how-it-works"] {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-component="how-it-works"] {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+[data-component="how-it-works"] .how-it-works-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+[data-component="how-it-works"] .how-it-works-header {
+  text-align: center;
+  margin-bottom: 4rem;
+}
+
+[data-component="how-it-works"] .how-it-works-title {
+  font-size: 2.25rem;
+  line-height: 2.5rem;
+  font-weight: 700;
+  color: var(--color-foreground);
+  margin: 0 0 1.5rem;
+}
+
+@media (min-width: 640px) {
+  [data-component="how-it-works"] .how-it-works-title {
+    font-size: 3rem;
+    line-height: 1;
+  }
+}
+
+[data-component="how-it-works"] .how-it-works-lede {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  color: var(--color-muted-foreground);
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Usage example "chat window" cards                                     */
+/* ---------------------------------------------------------------------- */
+
+[data-component="how-it-works"] .how-it-works-examples {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+[data-component="how-it-works"] .usage-example-window {
+  background: rgba(23, 23, 23, 0.3);
+  backdrop-filter: blur(24px);
+  border-radius: 1rem;
+  border: 1px solid rgba(38, 38, 38, 0.5);
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+[data-component="how-it-works"] .usage-example-header {
+  background: rgba(23, 23, 23, 0.5);
+  border-bottom: 1px solid rgba(38, 38, 38, 0.5);
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+[data-component="how-it-works"] .usage-example-dots {
+  display: flex;
+  gap: 0.5rem;
+}
+
+[data-component="how-it-works"] .usage-example-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 9999px;
+}
+
+[data-component="how-it-works"] .usage-example-dot--red {
+  background: #ef4444;
+}
+
+[data-component="how-it-works"] .usage-example-dot--yellow {
+  background: #eab308;
+}
+
+[data-component="how-it-works"] .usage-example-dot--green {
+  background: #22c55e;
+}
+
+[data-component="how-it-works"] .usage-example-name {
+  font-family: "JetBrains Mono", "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+  font-size: 0.875rem;
+  color: var(--color-muted-foreground);
+}
+
+[data-component="how-it-works"] .usage-example-tags {
+  margin-left: auto;
+  display: flex;
+  gap: 0.5rem;
+}
+
+[data-component="how-it-works"] .usage-example-tag {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  background: rgba(124, 58, 237, 0.2);
+  color: var(--color-accent);
+}
+
+[data-component="how-it-works"] .usage-example-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+[data-component="how-it-works"] .usage-example-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+[data-component="how-it-works"] .usage-example-avatar {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-background);
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+
+[data-component="how-it-works"] .usage-example-avatar--user {
+  background: var(--color-accent);
+}
+
+[data-component="how-it-works"] .usage-example-avatar--ai {
+  background: var(--color-accent-2);
+}
+
+[data-component="how-it-works"] .usage-example-bubble-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+[data-component="how-it-works"] .usage-example-bubble {
+  border-radius: 1rem;
+  border-top-left-radius: 0;
+  padding: 1rem;
+  border: 1px solid rgba(38, 38, 38, 0.3);
+}
+
+[data-component="how-it-works"] .usage-example-bubble--user {
+  background: rgba(10, 10, 10, 0.5);
+}
+
+[data-component="how-it-works"] .usage-example-bubble--ai {
+  background: rgba(23, 23, 23, 0.2);
+}
+
+[data-component="how-it-works"] .usage-example-prompt {
+  color: var(--color-foreground);
+  margin: 0;
+}
+
+[data-component="how-it-works"] .usage-example-text {
+  color: var(--color-foreground);
+  white-space: pre-wrap;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+  font-size: 0.875rem;
+  line-height: 1.625;
+  margin: 0;
+}
+
+[data-component="how-it-works"] .usage-example-json {
+  margin: 0.5rem 0;
+}
+
+[data-component="how-it-works"] .usage-example-json pre {
+  margin: 0;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  padding: 1rem;
+}
+
+[data-component="how-it-works"] .usage-example-footer {
+  background: rgba(10, 10, 10, 0.3);
+  border-top: 1px solid rgba(38, 38, 38, 0.5);
+  padding: 1.5rem;
+}
+
+[data-component="how-it-works"] .usage-example-footer p {
+  font-size: 0.875rem;
+  color: var(--color-muted-foreground);
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Call to action                                                        */
+/* ---------------------------------------------------------------------- */
+
+[data-component="how-it-works"] .how-it-works-cta {
+  text-align: center;
+  margin-top: 4rem;
+}
+
+[data-component="how-it-works"] .how-it-works-cta-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem;
+  background: linear-gradient(to right, rgba(124, 58, 237, 0.1), rgba(6, 182, 212, 0.1), rgba(34, 197, 94, 0.1));
+  border-radius: 1.5rem;
+  border: 1px solid rgba(38, 38, 38, 0.5);
+  backdrop-filter: blur(24px);
+  text-align: left;
+}
+
+@media (max-width: 640px) {
+  [data-component="how-it-works"] .how-it-works-cta-card {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+[data-component="how-it-works"] .how-it-works-cta-icon {
+  flex-shrink: 0;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 1rem;
+  background: rgba(124, 58, 237, 0.2);
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-component="how-it-works"] .how-it-works-cta-icon .icon {
+  width: 2rem;
+  height: 2rem;
+  color: var(--color-accent);
+}
+
+[data-component="how-it-works"] .how-it-works-cta-text {
+  text-align: left;
+}
+
+[data-component="how-it-works"] .how-it-works-cta-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-foreground);
+  margin: 0 0 0.5rem;
+}
+
+[data-component="how-it-works"] .how-it-works-cta-description {
+  color: var(--color-muted-foreground);
+  margin: 0 0 1rem;
+}
+
+[data-component="how-it-works"] .how-it-works-cta-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  background: var(--color-accent);
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.3s, box-shadow 0.3s, background-color 0.3s;
+}
+
+[data-component="how-it-works"] .how-it-works-cta-link:hover {
+  background: rgba(124, 58, 237, 0.9);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.6);
+  transform: translateY(-0.25rem) scale(1.05);
+}
+
+[data-component="how-it-works"] .how-it-works-cta-link .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #ffffff;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Responsive adjustments (ported from HowItWorks.astro's scoped style)  */
+/* ---------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  [data-component="how-it-works"] .how-it-works-cta-title {
+    font-size: 1.5rem;
+  }
+
+  [data-component="how-it-works"] .usage-example-body {
+    padding: 1rem;
+  }
+
+  [data-component="how-it-works"] .usage-example-header {
+    padding: 0.75rem;
+  }
+
+  [data-component="how-it-works"] .usage-example-text,
+  [data-component="how-it-works"] .usage-example-json pre {
+    font-size: 0.75rem;
+  }
+}

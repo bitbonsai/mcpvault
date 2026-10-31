@@ -1,13 +1,13 @@
-# Security Policy
+# Security policy
 
-## Supported Versions
+## Supported versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.7.x   | :white_check_mark: |
-| < 0.7   | :x:                |
+| Version | Supported |
+| --- | --- |
+| Latest npm release | Yes |
+| Older releases | No |
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
@@ -15,7 +15,7 @@ Instead, report them via GitHub's private vulnerability reporting:
 
 1. Go to the [Security tab](https://github.com/bitbonsai/mcpvault/security)
 2. Click "Report a vulnerability"
-3. Provide a detailed description
+3. Include the affected version, reproduction steps, and impact
 
 ### What to include
 
@@ -23,7 +23,7 @@ Instead, report them via GitHub's private vulnerability reporting:
 - Step-by-step reproduction instructions
 - Affected versions
 - Potential impact
-- Suggested fix (if any)
+- Suggested fix, if you have one
 
 ### Response timeline
 
@@ -31,7 +31,7 @@ Instead, report them via GitHub's private vulnerability reporting:
 - **Status update**: within 7 days
 - **Fix timeline**: depends on severity, typically 30 days for critical issues
 
-## Security Scope
+## Security scope
 
 ### In scope
 
@@ -53,20 +53,16 @@ Given that this MCP server accesses personal data in Obsidian vaults, we conside
 - Social engineering attacks
 - Vulnerabilities in dependencies with no realistic exploit path in this context
 
-## Security Measures
-
-This project implements several security controls:
+## Security controls
 
 - **Path filtering**: blocks access to `.obsidian/`, `.git/`, `node_modules/`, and system files
 - **Path traversal prevention**: validates all paths stay within vault boundaries
 - **Frontmatter validation**: blocks functions, symbols, and potentially dangerous YAML constructs
-- **Confirmation for destructive ops**: delete operations require explicit path confirmation
+- **Confirmation parameters**: `delete_note` and `move_file` require matching path confirmation
 - **Dependency security**: automated updates via Dependabot, npm audit in CI
 - **Static analysis**: CodeQL scans on every PR and weekly
 - **Provenance**: npm packages published with SLSA provenance attestation
 
-## Acknowledgments
+## Published advisories
 
-We thank the following researchers for responsibly disclosing vulnerabilities:
-
-*No vulnerabilities reported yet.*
+Resolved vulnerabilities are listed in the repository's [security advisories](https://github.com/bitbonsai/mcpvault/security/advisories).

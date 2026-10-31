@@ -46,6 +46,21 @@ describe("PathFilter", () => {
     expect(filter.isAllowed("Thumbs.db")).toBe(false);
   });
 
+  test("blocks dotfiles and hidden directories at any depth", () => {
+    const filter = new PathFilter();
+
+    for (const path of [
+      ".env",
+      ".bashrc",
+      ".hidden.md",
+      "notes/.env",
+      "notes/.private/note.md",
+    ]) {
+      expect(filter.isAllowed(path)).toBe(false);
+      expect(filter.isAllowedForListing(path)).toBe(false);
+    }
+  });
+
   test("blocks non-allowed extensions", () => {
     const filter = new PathFilter();
     expect(filter.isAllowed("script.js")).toBe(false);
@@ -269,9 +284,9 @@ describe("PathFilter", () => {
       expect(() => filter.isAllowed("")).not.toThrow();
     });
 
-    test("handles path with only extension", () => {
+    test("blocks a path containing only an extension as a dotfile", () => {
       const filter = new PathFilter();
-      expect(filter.isAllowed(".md")).toBe(true);
+      expect(filter.isAllowed(".md")).toBe(false);
     });
 
     test("handles very long paths", () => {

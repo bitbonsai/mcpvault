@@ -1,10 +1,9 @@
 import { test, expect, beforeEach, afterEach } from "vitest";
 import { createServer } from "./createServer.js";
-import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 
 let testVaultPath: string;
 
@@ -26,7 +25,7 @@ test("createServer returns a Server instance", () => {
   expect(typeof server.connect).toBe("function");
 });
 
-test("server registers 16 tools", async () => {
+test("server registers 18 tools", async () => {
   const server = createServer(testVaultPath, { version: "1.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
@@ -38,12 +37,13 @@ test("server registers 16 tools", async () => {
   ]);
 
   const result = await client.listTools();
-  expect(result.tools).toHaveLength(16);
+  expect(result.tools).toHaveLength(18);
 
   const toolNames = result.tools.map((t) => t.name).sort();
   expect(toolNames).toEqual([
     "delete_note",
     "get_frontmatter",
+    "get_note_outline",
     "get_notes_info",
     "get_vault_stats",
     "list_all_tags",
@@ -54,6 +54,7 @@ test("server registers 16 tools", async () => {
     "patch_note",
     "read_multiple_notes",
     "read_note",
+    "read_note_lines",
     "search_notes",
     "update_frontmatter",
     "wiki_link",
@@ -95,8 +96,8 @@ test("custom options are applied", () => {
   expect(server).toBeDefined();
 });
 
-async function connectClient() {
-  const server = createServer(testVaultPath, { version: "1.0.0" });
+async function connectClient(options: Parameters<typeof createServer>[1] = {}) {
+  const server = createServer(testVaultPath, { version: "1.0.0", ...options });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-client", version: "1.0.0" });
   await Promise.all([
@@ -105,6 +106,60 @@ async function connectClient() {
   ]);
   return { server, client };
 }
+
+test("default exclusions hide discovery results without blocking direct reads", async () => {
+  await mkdir(join(testVaultPath, "Archive"), { recursive: true });
+  await mkdir(join(testVaultPath, "Active"), { recursive: true });
+  await writeFile(join(testVaultPath, "Archive/hidden.md"), "# Hidden\n\nshared needle");
+  await writeFile(join(testVaultPath, "Active/visible.md"), "# Visible\n\nshared needle");
+
+  const { server, client } = await connectClient({ excludePaths: [" Archive/ "] });
+  try {
+    const rootListing = await client.callTool({
+      name: "list_directory",
+      arguments: { path: "." },
+    });
+    const listed = JSON.parse((rootListing.content as any)[0].text);
+    expect(listed.dirs).toEqual(["Active"]);
+
+    const excludedListing = await client.callTool({
+      name: "list_directory",
+      arguments: { path: "Active/../Archive" },
+    });
+    expect(excludedListing.isError).toBe(true);
+    expect((excludedListing.content as any)[0].text).toContain("excluded by server configuration");
+
+    const search = await client.callTool({
+      name: "search_notes",
+      arguments: { query: "shared needle" },
+    });
+    expect(JSON.parse((search.content as any)[0].text).map((result: any) => result.p)).toEqual([
+      "Active/visible.md",
+    ]);
+
+    const additionalPerCallExclude = await client.callTool({
+      name: "search_notes",
+      arguments: { query: "shared needle", excludePaths: ["Active"] },
+    });
+    expect(JSON.parse((additionalPerCallExclude.content as any)[0].text)).toEqual([]);
+
+    const directWrite = await client.callTool({
+      name: "write_note",
+      arguments: { path: "Archive/hidden.md", content: "updated hidden content" },
+    });
+    expect(directWrite.isError).toBeFalsy();
+
+    const directRead = await client.callTool({
+      name: "read_note",
+      arguments: { path: "Archive/hidden.md" },
+    });
+    expect(directRead.isError).toBeFalsy();
+    expect((directRead.content as any)[0].text).toContain("updated hidden content");
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
 
 test("wiki_link returns isError on invalid syntax (backslash in parsed)", async () => {
   const { server, client } = await connectClient();
@@ -224,3 +279,124 @@ test("wiki_link resolves path-qualified link to the exact file", async () => {
     await server.close();
   }
 });
+
+test("read-only mode exposes read tools and rejects every vault mutation", async () => {
+  await writeFile(join(testVaultPath, "existing.md"), "# Existing\n\nSafe content");
+
+  const server = createServer(testVaultPath, {
+    version: "1.0.0",
+    readOnly: true,
+  });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "read-only-client", version: "1.0.0" });
+  await Promise.all([
+    client.connect(clientTransport),
+    server.connect(serverTransport),
+  ]);
+
+  try {
+    const listedTools = await client.listTools();
+    const toolNames = listedTools.tools.map((tool) => tool.name);
+    expect(toolNames).toHaveLength(11);
+    expect(toolNames).toContain("read_note");
+    expect(toolNames).toContain("search_notes");
+    expect(toolNames).not.toContain("write_note");
+    expect(toolNames).not.toContain("manage_tags");
+
+    const readResult = await client.callTool({
+      name: "read_note",
+      arguments: { path: "existing.md" },
+    });
+    expect(readResult.isError).toBeFalsy();
+    expect((readResult.content as any)[0].text).toContain("Safe content");
+
+    const mutations = [
+      { name: "write_note", arguments: { path: "blocked.md", content: "blocked" } },
+      { name: "patch_note", arguments: { path: "existing.md", oldString: "Safe", newString: "Changed" } },
+      { name: "delete_note", arguments: { path: "existing.md", confirmPath: "existing.md" } },
+      { name: "move_note", arguments: { oldPath: "existing.md", newPath: "moved.md" } },
+      { name: "move_file", arguments: { oldPath: "existing.md", newPath: "moved.md", confirmOldPath: "existing.md", confirmNewPath: "moved.md" } },
+      { name: "update_frontmatter", arguments: { path: "existing.md", frontmatter: { status: "changed" } } },
+      { name: "manage_tags", arguments: { path: "existing.md", operation: "list" } },
+    ];
+
+    for (const mutation of mutations) {
+      const result = await client.callTool(mutation);
+      expect(result.isError, `${mutation.name} should be blocked`).toBe(true);
+      expect((result.content as any)[0].text).toContain("read-only mode");
+    }
+
+    await expect(readFile(join(testVaultPath, "blocked.md"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    expect(await readFile(join(testVaultPath, "existing.md"), "utf8")).toBe(
+      "# Existing\n\nSafe content",
+    );
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
+
+test("failed directory move_note is followed by list, read, and a valid move", async () => {
+  await mkdir(join(testVaultPath, "dir-source"));
+  await mkdir(join(testVaultPath, "dir-target"));
+  await writeFile(join(testVaultPath, "dir-source/nested.md"), "nested");
+  await writeFile(join(testVaultPath, "keep.md"), "---\ntitle: Keep\n---\n\nKeep body\n");
+
+  const { server, client } = await connectClient();
+  try {
+    const sourceMove = await client.callTool({
+      name: "move_note",
+      arguments: { oldPath: "dir-source", newPath: "should-not-exist/out.md" },
+    });
+    expect(sourceMove.isError).toBe(true);
+    const sourceBody = JSON.parse((sourceMove.content as any)[0].text);
+    expect(sourceBody.success).toBe(false);
+    expect(sourceBody.message).toContain("Source path is a directory: dir-source");
+    expect(sourceBody.message).toContain("file path");
+
+    const targetMove = await client.callTool({
+      name: "move_note",
+      arguments: { oldPath: "keep.md", newPath: "dir-target", overwrite: true },
+    });
+    expect(targetMove.isError).toBe(true);
+    const targetBody = JSON.parse((targetMove.content as any)[0].text);
+    expect(targetBody.success).toBe(false);
+    expect(targetBody.message).toContain("Target path is a directory: dir-target");
+    expect(targetBody.message).not.toContain("overwrite");
+
+    const listingResult = await client.callTool({
+      name: "list_directory",
+      arguments: {},
+    });
+    expect(listingResult.isError).toBeFalsy();
+    const listing = JSON.parse((listingResult.content as any)[0].text);
+    expect(listing.files).toContain("keep.md");
+    expect(listing.dirs).toEqual(expect.arrayContaining(["dir-source", "dir-target"]));
+    expect(listing.dirs).not.toContain("should-not-exist");
+
+    const readResult = await client.callTool({
+      name: "read_note",
+      arguments: { path: "keep.md" },
+    });
+    expect(readResult.isError).toBeFalsy();
+    const note = JSON.parse((readResult.content as any)[0].text);
+    expect(note.fm.title).toBe("Keep");
+    expect(note.content).toContain("Keep body");
+
+    const validMove = await client.callTool({
+      name: "move_note",
+      arguments: { oldPath: "keep.md", newPath: "moved/keep.md" },
+    });
+    expect(validMove.isError).toBeFalsy();
+    const moved = JSON.parse((validMove.content as any)[0].text);
+    expect(moved.success).toBe(true);
+    expect(await readFile(join(testVaultPath, "moved/keep.md"), "utf8")).toContain("Keep body");
+    await expect(readFile(join(testVaultPath, "keep.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(join(testVaultPath, "dir-source/nested.md"), "utf8")).toBe("nested");
+  } finally {
+    await client.close();
+    await server.close();
+  }
+}, 10_000);

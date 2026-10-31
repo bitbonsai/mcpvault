@@ -1,20 +1,54 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+import { Server, type Tool } from "@modelcontextprotocol/server";
 import { FileSystemService } from "./filesystem.js";
 import { FrontmatterHandler, parseFrontmatter } from "./frontmatter.js";
 import { PathFilter } from "./pathfilter.js";
 import { SearchService } from "./search.js";
 import { handleWikiLinkTool } from "./wikilink/index.js";
-import { resolve } from "path";
+import { posix, resolve } from "path";
 
 export interface CreateServerOptions {
   name?: string;
   version?: string;
   pathFilter?: PathFilter;
   frontmatterHandler?: FrontmatterHandler;
+  /** Expose read tools only and reject direct calls to mutating tools. */
+  readOnly?: boolean;
+  /** Vault-relative subtrees hidden from search and directory listings. */
+  excludePaths?: string[];
+}
+
+const MUTATING_TOOLS = new Set([
+  "write_note",
+  "patch_note",
+  "delete_note",
+  "move_note",
+  "move_file",
+  "update_frontmatter",
+  "manage_tags",
+]);
+
+function normalizeSubtree(path: string): string {
+  let relativePath = path.trim().replace(/\\/g, "/");
+  while (relativePath.startsWith("/")) relativePath = relativePath.slice(1);
+
+  const normalizedPath = posix.normalize(relativePath);
+  if (normalizedPath === ".") return "";
+  return normalizedPath.endsWith("/") ? normalizedPath.slice(0, -1) : normalizedPath;
+}
+
+function mergeExcludePaths(defaults: string[], requested: unknown): string[] {
+  const provided = Array.isArray(requested) ? requested : [];
+  return [...new Set([...defaults, ...provided]
+    .filter((path): path is string => typeof path === "string")
+    .map(normalizeSubtree)
+    .filter(Boolean))];
+}
+
+function isExcluded(path: string, excludePaths: string[]): boolean {
+  const normalizedPath = normalizeSubtree(path);
+  return excludePaths.some((excluded) =>
+    normalizedPath === excluded || normalizedPath.startsWith(`${excluded}/`)
+  );
 }
 
 export function createServer(vaultPath: string, options: CreateServerOptions = {}): Server {
@@ -23,8 +57,11 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
     version = "0.0.0",
     pathFilter = new PathFilter(),
     frontmatterHandler = new FrontmatterHandler(),
+    readOnly = false,
+    excludePaths = [],
   } = options;
 
+  const defaultExcludePaths = mergeExcludePaths([], excludePaths);
   const resolvedVaultPath = resolve(vaultPath);
   const fileSystem = new FileSystemService(resolvedVaultPath, pathFilter, frontmatterHandler);
   const searchService = new SearchService(resolvedVaultPath, pathFilter);
@@ -33,9 +70,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
     capabilities: { tools: {} },
   });
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return {
-      tools: [
+  server.setRequestHandler("tools/list", async () => {
+    const tools: Tool[] = [
         {
           name: "read_note",
           description: "Read a note from the Obsidian vault",
@@ -249,14 +285,55 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
             },
             required: ["document"]
           }
+        },
+        {
+          name: "get_note_outline",
+          description: "Get the heading structure of a note without reading its full content. Returns headings with level, text, and line number. Use this first to navigate large notes efficiently, then call read_note_lines to read only the section you need.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              path: { type: "string", description: "Path to the note relative to vault root" },
+              prettyPrint: { type: "boolean", description: "Format JSON response with indentation (default: false)", default: false }
+            },
+            required: ["path"]
+          }
+        },
+        {
+          name: "read_note_lines",
+          description: "Read a specific line range from a note. Use after get_note_outline to read only the section you need instead of the full file.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              path: { type: "string", description: "Path to the note relative to vault root" },
+              startLine: { type: "number", description: "First line to read (1-indexed, inclusive)" },
+              endLine: { type: "number", description: "Last line to read (1-indexed, inclusive)" },
+              prettyPrint: { type: "boolean", description: "Format JSON response with indentation (default: false)", default: false }
+            },
+            required: ["path", "startLine", "endLine"]
+          }
         }
-      ]
+      ];
+
+    return {
+      tools: readOnly
+        ? tools.filter((tool) => !MUTATING_TOOLS.has(tool.name))
+        : tools,
     };
   });
 
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler("tools/call", async (request) => {
     const { name: toolName, arguments: args } = request.params;
     const trimmedArgs = trimPaths(args);
+
+    if (readOnly && MUTATING_TOOLS.has(toolName)) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error: ${toolName} is disabled because MCPVault is running in read-only mode. Restart without --read-only to enable vault mutations.`,
+        }],
+        isError: true,
+      };
+    }
 
     try {
       switch (toolName) {
@@ -295,10 +372,22 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
         }
 
         case "list_directory": {
-          const listing = await fileSystem.listDirectory(trimmedArgs.path || '');
+          const requestedPath = normalizeSubtree(trimmedArgs.path || "");
+          if (isExcluded(requestedPath, defaultExcludePaths)) {
+            throw new Error(`Directory excluded by server configuration: ${requestedPath}`);
+          }
+
+          const listing = await fileSystem.listDirectory(trimmedArgs.path || "");
+          const prefix = requestedPath ? `${requestedPath}/` : "";
+          const directories = listing.directories.filter((name) =>
+            !isExcluded(`${prefix}${name}`, defaultExcludePaths)
+          );
+          const files = listing.files.filter((name) =>
+            !isExcluded(`${prefix}${name}`, defaultExcludePaths)
+          );
           const indent = trimmedArgs.prettyPrint ? 2 : undefined;
           return {
-            content: [{ type: "text", text: JSON.stringify({ dirs: listing.directories, files: listing.files }, null, indent) }]
+            content: [{ type: "text", text: JSON.stringify({ dirs: directories, files }, null, indent) }]
           };
         }
 
@@ -322,7 +411,7 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
             searchFrontmatter: trimmedArgs.searchFrontmatter,
             caseSensitive: trimmedArgs.caseSensitive,
             pathPrefix: trimmedArgs.pathPrefix,
-            excludePaths: trimmedArgs.excludePaths
+            excludePaths: mergeExcludePaths(defaultExcludePaths, trimmedArgs.excludePaths)
           });
           const indent = trimmedArgs.prettyPrint ? 2 : undefined;
           return {
@@ -431,6 +520,25 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
         case "wiki_link":
           return await handleWikiLinkTool(fileSystem, trimmedArgs);
 
+        case "get_note_outline": {
+          const headings = await fileSystem.getNoteOutline(trimmedArgs.path);
+          const indent = trimmedArgs.prettyPrint ? 2 : undefined;
+          return {
+            content: [{ type: "text", text: JSON.stringify(headings, null, indent) }]
+          };
+        }
+
+        case "read_note_lines": {
+          const text = await fileSystem.readNoteLines({
+            path: trimmedArgs.path,
+            startLine: trimmedArgs.startLine,
+            endLine: trimmedArgs.endLine
+          });
+          return {
+            content: [{ type: "text", text }]
+          };
+        }
+
         default:
           throw new Error(`Unknown tool: ${toolName}`);
       }
@@ -457,6 +565,9 @@ function trimPaths(args: any): any {
 
   if (trimmed.paths && Array.isArray(trimmed.paths)) {
     trimmed.paths = trimmed.paths.map((p: any) => typeof p === 'string' ? p.trim() : p);
+  }
+  if (trimmed.excludePaths && Array.isArray(trimmed.excludePaths)) {
+    trimmed.excludePaths = trimmed.excludePaths.map((p: any) => typeof p === 'string' ? p.trim() : p);
   }
 
   return trimmed;

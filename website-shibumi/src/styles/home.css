@@ -1,0 +1,1082 @@
+/*
+ * Home page ("/"). Ported from index.astro plus the Tailwind utility
+ * classes and scoped <style> blocks of Hero.astro, SpecPreviewCallout.astro,
+ * UpdateCallout.astro, and NewsletterSignup.astro.
+ *
+ * Convention: every component here has a `data-component` root (matching
+ * shared.css); page-only rules are rooted under `[data-page="home"]`,
+ * matching the `data-page` attribute Layout sets on <body>.
+ *
+ * Shell-review carry-over: index.astro's own <style> block set
+ * `overflow-x: hidden` on `html, body`. Astro leaves bare `html`/`body`
+ * selectors unscoped even inside a page's non-`is:global` <style> block, so
+ * that rule was actually global in production -- every route got it, not
+ * just "/". The first port of shared.css copied it as an unconditional
+ * global rule. That's a behavior *widening*, not parity: scope it back down
+ * to the one page that declared it.
+ */
+
+[data-page="home"] {
+  overflow-x: hidden;
+}
+
+/* index.astro's own literal `<main id="main-content">` (the only element in
+   its template that isn't a child component, so the only real match for its
+   scoped style): removes the shared shell's nav-clearance padding because
+   Hero already reserves its own space (`pt-9` + `min-height: 100vh`) and is
+   meant to sit directly under the floating nav, not below a gap. */
+[data-page="home"] main {
+  padding-top: 0;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Hero                                                                   */
+/* ---------------------------------------------------------------------- */
+
+[data-component="hero"] {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 2.25rem 1rem 0;
+}
+
+@media (min-width: 640px) {
+  [data-component="hero"] {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-component="hero"] {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+[data-component="hero"] .hero-gradient {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(125% 125% at 50% 10%, transparent 55%, #8b5cf6 75%, transparent 100%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+}
+
+@media (max-width: 1024px) {
+  [data-component="hero"] .hero-gradient {
+    background-size: 200% 200%;
+  }
+}
+
+[data-component="hero"] .hero-content {
+  position: relative;
+  z-index: 10;
+  max-width: 72rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+[data-component="hero"] .floating-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+[data-component="hero"] .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(38, 38, 38, 0.5);
+  background: rgba(23, 23, 23, 0.5);
+  backdrop-filter: blur(4px);
+  /* tailwind.config.js overrides `text-sm` to 1rem/1.5rem for this site
+     (the Tailwind default is 0.875rem/1.25rem) -- Hero.astro's badges use
+     plain `text-sm` with no `leading-*` override, so production renders at
+     the customized size. Using the framework default here made the badge
+     row ~7px shorter than production, which is most of the hero's overall
+     vertical drift since the row's height feeds the flex-centered hero
+     content below it. */
+  font-size: 1rem;
+  line-height: 1.5rem;
+  color: var(--color-muted-foreground);
+}
+
+[data-component="hero"] .badge-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--color-success);
+}
+
+[data-component="hero"] .hero-title {
+  font-size: 3rem;
+  font-weight: 700;
+  margin: 0 0 1.5rem;
+  /* Tailwind's `text-5xl`..`text-8xl` scale all bundle `line-height: 1`
+     (unitless) by default, and this project's tailwind.config.js only
+     customizes `xs`/`sm`, not these -- so that's what applies at every
+     desktop/tablet breakpoint of this h1. Hero.astro's own scoped <style>
+     only overrides to 1.1 inside its mobile media queries (see below); a
+     flat 1.1 here made the title ~10% taller than production at the
+     largest (96px) breakpoint, which was most of the hero's residual
+     vertical drift. */
+  line-height: 1;
+}
+
+@media (min-width: 640px) {
+  [data-component="hero"] .hero-title {
+    font-size: 3.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-component="hero"] .hero-title {
+    font-size: 4.5rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  [data-component="hero"] .hero-title {
+    font-size: 6rem;
+  }
+}
+
+[data-component="hero"] .gradient-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+[data-component="hero"] .hero-title-icon {
+  width: 0.9em;
+  height: 0.9em;
+  color: var(--color-accent);
+}
+
+/* This block (tagline) and `.hero-subtext` below were missing an explicit
+   `line-height`, so the browser's default `normal` (~1.15x font-size)
+   applied instead of the bundled line-height each Tailwind `text-*` utility
+   actually carries. At the `lg` breakpoint this happened to be close enough
+   (36px either way) to not show up in the desktop diff, but it drifted
+   visibly at the smaller sizes -- explicit values below match Tailwind's
+   (uncustomized) `xl`/`2xl`/`3xl` and `lg`/`xl` scale exactly. */
+[data-component="hero"] .hero-tagline {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 500;
+  color: var(--color-foreground);
+  margin: 0 0 1rem;
+}
+
+@media (min-width: 640px) {
+  [data-component="hero"] .hero-tagline {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-component="hero"] .hero-tagline {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+  }
+}
+
+[data-component="hero"] .hero-subtext {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  color: var(--color-muted-foreground);
+  margin: 0 auto 2rem;
+  max-width: 48rem;
+}
+
+@media (min-width: 640px) {
+  [data-component="hero"] .hero-subtext {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+  }
+}
+
+[data-component="hero"] .hero-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 3rem;
+}
+
+@media (min-width: 640px) {
+  [data-component="hero"] .hero-cta {
+    flex-direction: row;
+  }
+}
+
+[data-component="hero"] .btn-primary,
+[data-component="hero"] .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 2rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  font-size: 1.125rem;
+  /* Missing line-height fell back to the browser's `normal`, shrinking
+     the buttons by a few px versus Tailwind's bundled `text-lg` value. */
+  line-height: 1.75rem;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+[data-component="hero"] .btn-primary {
+  background: var(--color-accent);
+  color: #ffffff;
+  border: none;
+}
+
+[data-component="hero"] .btn-primary:hover {
+  background: rgba(124, 58, 237, 0.9);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.6);
+  transform: translateY(-0.25rem) scale(1.05);
+}
+
+[data-component="hero"] .btn-primary:hover .icon {
+  transform: rotate(12deg);
+}
+
+[data-component="hero"] .btn-secondary {
+  border: 1px solid rgba(38, 38, 38, 0.5);
+  color: var(--color-foreground);
+  background: rgba(23, 23, 23, 0.4);
+  backdrop-filter: blur(8px);
+}
+
+[data-component="hero"] .btn-secondary:hover {
+  border-color: rgba(124, 58, 237, 0.5);
+}
+
+[data-component="hero"] .btn-secondary:hover .icon {
+  transform: scale(1.1);
+}
+
+[data-component="hero"] .btn-primary .icon,
+[data-component="hero"] .btn-secondary .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  transition: transform 0.3s ease;
+}
+
+[data-component="hero"] .hero-video-block {
+  width: 100%;
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+[data-component="hero"] .video-container {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-component="hero"] .video-aspect-ratio {
+  position: relative;
+  aspect-ratio: 1152 / 720;
+}
+
+[data-component="hero"] .video-container video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+[data-component="hero"] .support-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 2rem 0;
+  opacity: 0.75;
+  transition: opacity 0.3s ease;
+}
+
+[data-component="hero"] .support-badges:hover {
+  opacity: 1;
+}
+
+[data-component="hero"] .support-badges a {
+  display: inline-flex;
+  border-radius: 0.25rem;
+  transition: transform 0.2s ease;
+}
+
+[data-component="hero"] .support-badges a:hover {
+  transform: scale(1.05);
+  box-shadow: 0 10px 15px -3px rgba(124, 58, 237, 0.25);
+}
+
+[data-component="hero"] .support-badges img {
+  height: 1.5rem;
+  border-radius: 0.25rem;
+}
+
+@media (max-width: 768px) {
+  [data-component="hero"] {
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+
+  [data-component="hero"] .hero-title {
+    font-size: 3rem;
+    margin-bottom: 1.5rem;
+    /* Matches Hero.astro's own `@media (max-width: 768px) { h1 { ... } }`,
+       which is the one place production overrides the default line-height
+       of 1 back up to 1.1. */
+    line-height: 1.1;
+  }
+
+  [data-component="hero"] .hero-tagline {
+    font-size: 1.25rem;
+  }
+
+  [data-component="hero"] .hero-subtext {
+    font-size: 1.125rem;
+  }
+
+  [data-component="hero"] .hero-cta {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  [data-component="hero"] .btn-primary,
+  [data-component="hero"] .btn-secondary {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  [data-component="hero"] .hero-title {
+    font-size: 2.5rem;
+  }
+
+  [data-component="hero"] .hero-tagline {
+    font-size: 1.125rem;
+  }
+
+  /* Hero.astro's own scoped style only ever reassigns `.text-lg` (the
+     subtext) to 1.125rem at the 768px breakpoint (`!important`, see above)
+     and never touches it again at 640px or 480px -- it stays 1.125rem all
+     the way down. This override shrunk it further to 1rem, which had no
+     counterpart in production. */
+}
+
+@media (max-width: 480px) {
+  [data-component="hero"] {
+    padding: 1rem 0.5rem;
+  }
+
+  [data-component="hero"] .hero-title {
+    font-size: 2rem;
+  }
+
+  [data-component="hero"] .floating-badges {
+    gap: 0.5rem;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Spec preview callout                                                  */
+/* ---------------------------------------------------------------------- */
+
+[data-component="spec-preview-callout"] {
+  position: relative;
+  padding: 0 1rem 1rem;
+}
+
+@media (min-width: 640px) {
+  [data-component="spec-preview-callout"] {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-component="spec-preview-callout"] {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+[data-component="spec-preview-callout"] .callout-inner {
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+[data-component="spec-preview-callout"] .callout-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(38, 38, 38, 0.6);
+  background: rgba(23, 23, 23, 0.7);
+  padding: 1rem 1.25rem;
+}
+
+[data-component="spec-preview-callout"] .callout-card::after {
+  content: "";
+  position: absolute;
+  inset: -8rem -2rem auto auto;
+  width: 16rem;
+  height: 16rem;
+  background: radial-gradient(circle, rgba(144, 101, 234, 0.22), transparent 62%);
+  pointer-events: none;
+}
+
+[data-component="spec-preview-callout"] .callout-row {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+[data-component="spec-preview-callout"] .callout-message {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+[data-component="spec-preview-callout"] .callout-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  background: rgba(124, 58, 237, 0.15);
+}
+
+[data-component="spec-preview-callout"] .callout-icon .icon {
+  width: 1rem;
+  height: 1rem;
+  color: var(--color-accent);
+}
+
+[data-component="spec-preview-callout"] .callout-text {
+  /* Same tailwind.config.js `text-sm` override as `.badge` above: font-size
+     is 1rem here, not the Tailwind default 0.875rem. `leading-relaxed` in
+     the Astro source multiplies that by 1.625 for the line-height. */
+  font-size: 1rem;
+  line-height: 1.625;
+  /* This is a bare `<p>` with no CSS reset in this port (no Preflight
+     equivalent for default UA margins), so it kept the browser's default
+     `1em 0` paragraph margin. That extra ~28px of margin was inflating the
+     callout card's height beyond production's, compounding the vertical
+     drift from the badge row above. Production's Tailwind Preflight zeroes
+     this out; do the same here. */
+  margin: 0;
+  color: var(--color-muted-foreground);
+}
+
+[data-component="spec-preview-callout"] .callout-headline {
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+[data-component="spec-preview-callout"] .spec-link {
+  /* Production's scoped style sets `color: var(--color-accent)`, but that
+     custom property is never defined anywhere in the Astro site (only the
+     Tailwind `text-accent` utility class carries the real accent hex) --
+     the declaration is invalid at compute time, so the browser falls back
+     to the inherited color from `.callout-headline` (bold white). Because
+     this port's :root *does* define `--color-accent`, copying that
+     declaration verbatim would actually apply it and render purple,
+     diverging from production. Omit `color` here to inherit instead. */
+  text-decoration: underline;
+  text-decoration-color: rgba(144, 101, 234, 0.45);
+  text-underline-offset: 0.2em;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
+}
+
+[data-component="spec-preview-callout"] .spec-link:hover {
+  color: #cba6f7;
+  text-decoration-color: currentColor;
+}
+
+[data-component="spec-preview-callout"] .spec-link:focus-visible,
+[data-component="spec-preview-callout"] .work-link:focus-visible {
+  border-radius: 0.25rem;
+  outline: 2px solid rgba(144, 101, 234, 0.75);
+  outline-offset: 3px;
+}
+
+[data-component="spec-preview-callout"] .callout-short {
+  display: inline;
+}
+
+[data-component="spec-preview-callout"] .callout-long {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  [data-component="spec-preview-callout"] .callout-short {
+    display: none;
+  }
+
+  [data-component="spec-preview-callout"] .callout-long {
+    display: inline;
+  }
+}
+
+[data-component="spec-preview-callout"] .work-link {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(124, 58, 237, 0.25);
+  background: rgba(124, 58, 237, 0.1);
+  /* Same `text-sm` override as `.badge`/`.callout-text`: 1rem/1.5rem here,
+     not the Tailwind default 0.875rem. */
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  text-decoration: none;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+[data-component="spec-preview-callout"] .work-link:hover {
+  color: #cba6f7;
+  border-color: rgba(124, 58, 237, 0.45);
+  background: rgba(124, 58, 237, 0.2);
+}
+
+[data-component="spec-preview-callout"] .work-link .icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+[data-component="spec-preview-callout"] .work-link-label {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  [data-component="spec-preview-callout"] .work-link {
+    width: auto;
+    padding: 0 0.75rem;
+  }
+
+  [data-component="spec-preview-callout"] .work-link-label {
+    display: inline;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Update callout                                                        */
+/* ---------------------------------------------------------------------- */
+
+[data-component="update-callout"] {
+  position: relative;
+  padding: 4rem 1rem;
+}
+
+@media (min-width: 640px) {
+  [data-component="update-callout"] {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-component="update-callout"] {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+[data-component="update-callout"] .callout-inner {
+  position: relative;
+  overflow: hidden;
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  background: linear-gradient(to bottom right, rgba(124, 58, 237, 0.1), rgba(23, 23, 23, 0.5), rgba(6, 182, 212, 0.1));
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.1);
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+[data-component="update-callout"] .callout-inner::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.1), transparent);
+  transition: left 0.5s ease;
+  pointer-events: none;
+}
+
+[data-component="update-callout"] .callout-inner:hover::before {
+  left: 100%;
+}
+
+[data-component="update-callout"] .callout-inner:hover {
+  box-shadow: 0 8px 30px rgba(139, 92, 246, 0.2);
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+[data-component="update-callout"] .callout-icon {
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background: rgba(124, 58, 237, 0.2);
+}
+
+[data-component="update-callout"] .callout-icon .icon {
+  width: 1rem;
+  height: 1rem;
+  color: var(--color-accent);
+}
+
+[data-component="update-callout"] .callout-body {
+  flex: 1;
+  min-width: 0;
+}
+
+[data-component="update-callout"] .updates-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  position: relative;
+  padding-right: 2.4rem;
+  margin-bottom: 1rem;
+}
+
+[data-component="update-callout"] .updates-heading h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+  margin: 0;
+}
+
+[data-component="update-callout"] .version-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  background: rgba(124, 58, 237, 0.2);
+  color: var(--color-accent);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+[data-component="update-callout"] .latest-update {
+  color: var(--color-muted-foreground);
+  line-height: 1.6;
+  margin: 0 0 1rem;
+}
+
+[data-component="update-callout"] .entry-version {
+  font-weight: 500;
+  color: var(--color-foreground);
+}
+
+[data-component="update-callout"] a {
+  color: var(--color-accent);
+  transition: color 0.2s ease;
+}
+
+[data-component="update-callout"] a:hover {
+  color: var(--color-accent-2);
+}
+
+[data-component="update-callout"] .older-updates {
+  position: relative;
+  overflow: hidden;
+  transition: max-height 0.35s ease;
+}
+
+[data-component="update-callout"] .older-updates ul {
+  color: var(--color-muted-foreground);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-component="update-callout"] .older-updates li {
+  margin-top: 0.5rem;
+}
+
+[data-component="update-callout"] .older-updates li:first-child {
+  margin-top: 0;
+}
+
+[data-component="update-callout"] .older-updates.is-collapsed {
+  max-height: 2.5rem;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%);
+}
+
+[data-component="update-callout"] .older-updates.is-expanded {
+  max-height: 48rem;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+[data-component="update-callout"] .updates-changelog-link {
+  display: none;
+  margin-top: 0.9rem;
+  width: fit-content;
+  align-items: center;
+  gap: 0.42rem;
+  color: rgba(167, 139, 250, 0.95);
+  font-size: 0.9rem;
+  line-height: 1.2;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+[data-component="update-callout"] .older-updates.is-expanded .updates-changelog-link {
+  display: inline-flex;
+}
+
+[data-component="update-callout"] .updates-changelog-link:hover {
+  color: rgba(196, 181, 253, 1);
+}
+
+[data-component="update-callout"] .updates-changelog-link:focus-visible {
+  outline: 2px solid rgba(139, 92, 246, 0.7);
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}
+
+[data-component="update-callout"] .updates-changelog-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  opacity: 0.95;
+}
+
+[data-component="update-callout"] .updates-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 9999px;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  background: rgba(139, 92, 246, 0.15);
+  color: #ffffff;
+  transition: all 0.2s ease;
+}
+
+[data-component="update-callout"] .updates-toggle-compact {
+  width: 1.65rem;
+  height: 1.65rem;
+  flex-shrink: 0;
+  position: absolute;
+  top: 50%;
+  right: -0.35rem;
+  transform: translateY(-50%);
+}
+
+[data-component="update-callout"] .updates-toggle:hover {
+  background: rgba(139, 92, 246, 0.25);
+  border-color: rgba(139, 92, 246, 0.65);
+}
+
+[data-component="update-callout"] .updates-toggle-compact:hover {
+  transform: translateY(calc(-50% - 1px));
+}
+
+[data-component="update-callout"] .updates-toggle:focus-visible {
+  outline: 2px solid rgba(139, 92, 246, 0.7);
+  outline-offset: 2px;
+}
+
+[data-component="update-callout"] .updates-chevron {
+  width: 0.85rem;
+  height: 0.85rem;
+  opacity: 0.9;
+  transition: transform 0.2s ease;
+}
+
+[data-component="update-callout"] .updates-toggle.is-expanded .updates-chevron {
+  transform: rotate(180deg);
+}
+
+[data-component="update-callout"] .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Newsletter signup                                                     */
+/* ---------------------------------------------------------------------- */
+
+[data-component="newsletter-signup"] {
+  position: relative;
+  padding: 4rem 1rem;
+}
+
+@media (min-width: 640px) {
+  [data-component="newsletter-signup"] {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-component="newsletter-signup"] {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+[data-component="newsletter-signup"] .newsletter-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+[data-component="newsletter-signup"] .newsletter-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid rgba(38, 38, 38, 0.6);
+  background: rgba(23, 23, 23, 0.7);
+  padding: 2rem;
+}
+
+@media (min-width: 768px) {
+  [data-component="newsletter-signup"] .newsletter-card {
+    padding: 2.5rem;
+  }
+}
+
+[data-component="newsletter-signup"] .newsletter-grid {
+  display: grid;
+  gap: 3rem;
+}
+
+@media (min-width: 768px) {
+  [data-component="newsletter-signup"] .newsletter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: center;
+  }
+}
+
+[data-component="newsletter-signup"] .eyebrow {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--color-muted-foreground);
+}
+
+[data-component="newsletter-signup"] h2 {
+  margin: 1rem 0 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+@media (min-width: 1024px) {
+  [data-component="newsletter-signup"] h2 {
+    font-size: 1.875rem;
+  }
+}
+
+[data-component="newsletter-signup"] .lede {
+  margin: 0.75rem 0 0;
+  color: var(--color-muted-foreground);
+  line-height: 1.6;
+}
+
+[data-component="newsletter-signup"] .highlights {
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: rgba(163, 163, 163, 0.9);
+}
+
+[data-component="newsletter-signup"] .highlights li {
+  display: flex;
+  gap: 0.75rem;
+}
+
+[data-component="newsletter-signup"] .check {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 9999px;
+  background: rgba(124, 58, 237, 0.2);
+  color: var(--color-accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+[data-component="newsletter-signup"] .form-panel {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(38, 38, 38, 0.5);
+  background: rgba(10, 10, 10, 0.7);
+  padding: 1.5rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.2);
+}
+
+[data-component="newsletter-signup"] .form-panel form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+[data-component="newsletter-signup"] .form-honeypot {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+[data-component="newsletter-signup"] label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-foreground);
+}
+
+[data-component="newsletter-signup"] .form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  [data-component="newsletter-signup"] .form-row {
+    flex-direction: row;
+  }
+}
+
+[data-component="newsletter-signup"] .form-row input {
+  flex: 1;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(38, 38, 38, 0.6);
+  background: rgba(5, 5, 5, 0.6);
+  padding: 0.75rem 1rem;
+  color: var(--color-foreground);
+  font: inherit;
+}
+
+[data-component="newsletter-signup"] .form-row input::placeholder {
+  color: rgba(163, 163, 163, 0.6);
+}
+
+[data-component="newsletter-signup"] .form-row input:focus {
+  border-color: var(--color-accent);
+  outline: none;
+}
+
+[data-component="newsletter-signup"] .form-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 0.5rem;
+  background: var(--color-accent);
+  padding: 0.75rem 1.5rem;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #000000;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+[data-component="newsletter-signup"] .form-row button:hover {
+  background: rgba(124, 58, 237, 0.9);
+}
+
+[data-component="newsletter-signup"] .form-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+}
+
+[data-component="newsletter-signup"] .form-hint a {
+  font-weight: 700;
+  color: inherit;
+  text-decoration: none;
+}
+
+[data-component="newsletter-signup"] .form-hint a:hover {
+  color: var(--color-foreground);
+}
+
+[data-component="newsletter-signup"] .form-success {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-success);
+}
+
+[data-component="newsletter-signup"] .form-error {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-error);
+}
+
+[data-component="newsletter-signup"] [hidden] {
+  display: none;
+}

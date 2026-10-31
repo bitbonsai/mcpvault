@@ -1,0 +1,39 @@
+# Contract with shibumi-server (~/bit/shibumi-server): service name `web`,
+# host port bound to loopback only, build context is the repo root so the
+# Containerfile can COPY the root package.json (see Containerfile header).
+# shibumi-server resolves `composeFile` relative to the checkout root and
+# invokes compose with SHIBUMI_PORT set to the configured hostPort; the
+# ":-9100" fallback only matters for local `docker compose config`/`up`.
+#
+# Every hardening flag here mirrors the Quadlet unit it replaces
+# (website-shibumi/deploy/quadlet/mcpvault-web.container, removed): rootless,
+# read-only root filesystem, all capabilities dropped, no-new-privileges,
+# 512MB memory / 0.5 CPU ceiling, and the same /healthz check.
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: website-shibumi/Containerfile
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 0.5
+    restart: on-failure
+    ports:
+      - "127.0.0.1:${SHIBUMI_PORT:-9100}:3000"
+    # Not committed. Lives under deploy user's config directory so rootless
+    # shibumi-server can create and read it without root access.
+    env_file:
+      - path: ${HOME}/.config/shibumi-server/app-secrets/mcpvault-web.env
+        required: false
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/healthz"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3

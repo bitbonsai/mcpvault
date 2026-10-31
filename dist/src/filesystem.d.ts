@@ -1,6 +1,6 @@
 import { FrontmatterHandler } from './frontmatter.js';
 import { PathFilter } from './pathfilter.js';
-import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats } from './types.js';
+import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats, NoteHeading, ReadNoteLinesParams } from './types.js';
 /**
  * Map a filesystem write failure to a clear, accurate Error.
  *
@@ -15,6 +15,7 @@ export declare class FileSystemService {
     private vaultPath;
     private frontmatterHandler;
     private pathFilter;
+    private writeChains;
     constructor(vaultPath: string, pathFilter?: PathFilter, frontmatterHandler?: FrontmatterHandler);
     /**
      * Normalize an incoming path to be vault-relative. Strips leading slashes
@@ -23,6 +24,8 @@ export declare class FileSystemService {
      */
     private normalizePath;
     private resolvePath;
+    private withPathLock;
+    private atomicWrite;
     readNote(path: string): Promise<ParsedNote>;
     writeNote(params: NoteWriteParams): Promise<void>;
     patchNote(params: PatchNoteParams): Promise<PatchNoteResult>;
@@ -53,6 +56,8 @@ export declare class FileSystemService {
      * Throws only on caller misuse (empty name).
      */
     findPathForWikiLink(wikiLinkName: string): Promise<string[]>;
+    getNoteOutline(path: string): Promise<NoteHeading[]>;
+    readNoteLines(params: ReadNoteLinesParams): Promise<string>;
     getVaultStats(recentCount?: number): Promise<VaultStats>;
     listAllTags(): Promise<Array<{
         tag: string;

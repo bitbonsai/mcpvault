@@ -168,22 +168,26 @@ Do NOT bump for changes that do not ship: lockfile-only updates (e.g. a bare
 `npm audit fix`), docs, CI config, tests-only, or anything under `.triage/`.
 When unsure whether a change ships, do not bump; note it in the inbox.
 
-**Publishing is always manual.** The loop NEVER runs `npm publish`. After a PR
-that includes a version bump, write a top-of-inbox alert:
+**Publishing is always maintainer-triggered.** The loop NEVER runs `npm publish`
+or creates a GitHub Release. After a PR that includes a version bump, write a
+top-of-inbox alert:
 
 ```
-## PUBLISH NEEDED
-- PR #<n> bumps <old> -> <new> (<reason>). After it merges, run `npm publish`
-  manually. Loop does not publish.
+## RELEASE NEEDED
+- PR #<n> bumps <old> -> <new> (<reason>). After it merges and main is green,
+  follow RELEASING.md and create GitHub Release v<new>. The release workflow
+  publishes npm with provenance; the loop does not publish.
 ```
 
-Keep the alert until the maintainer confirms it shipped.
+Keep the alert until the GitHub Release, npm package, and installed-package
+smoke test are all confirmed.
 
 ## Guardrails
 
 - Never push to `main`, never merge, never `--force`. PRs only.
-- Never run `npm publish`. Version bumps ride inside the fix PR; publishing is
-  the maintainer's manual step, flagged via the inbox PUBLISH NEEDED alert.
+- Never run `npm publish` or create a GitHub Release. Version bumps ride inside
+  the fix PR; the maintainer creates the release after merge, flagged via the
+  inbox RELEASE NEEDED alert. Follow `RELEASING.md`.
 - Never touch files outside the worktree except `.triage/`.
 - The token usually lacks the GitHub `workflow` scope, so pushes that change
   `.github/workflows/*` are rejected. Do NOT attempt them; route any CI/workflow

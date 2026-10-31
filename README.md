@@ -1,12 +1,10 @@
-<div align="center">
-  <img width="256" height="256" alt="image" src="https://github.com/user-attachments/assets/1e21d898-811b-42c2-a810-bf921dde0f58" />
-</div>
+<div align="center"> <img width="256" height="256" alt="image" src="https://github.com/user-attachments/assets/1e21d898-811b-42c2-a810-bf921dde0f58" /> </div>
 
 # MCPVault
 
 [![MCP Toplist](https://mcptoplist.com/badge/glama%2Fbitbonsai%2Fmcpvault.svg)](https://mcptoplist.com/server/glama%2Fbitbonsai%2Fmcpvault)
 
-A universal AI bridge for Obsidian vaults using the Model Context Protocol (MCP) standard. Connect any MCP-compatible AI assistant to your knowledge base - works with Claude, ChatGPT, and future AI tools. This server provides safe read/write access to your notes while preventing YAML frontmatter corruption.
+A local MCP server that lets compatible clients read, search, and edit notes in an Obsidian vault. MCPVault works directly with vault files, restricts file operations to the configured vault root, and preserves formatting for unchanged frontmatter fields.
 
 <div align="center">
   
@@ -18,27 +16,22 @@ A universal AI bridge for Obsidian vaults using the Model Context Protocol (MCP)
 
 <div align="center">
 
-[![GitHub Stars](https://img.shields.io/github/stars/bitbonsai/mcpvault?style=flat&logo=github&logoColor=white&color=9065ea&labelColor=262626)](https://github.com/bitbonsai/mcpvault)
-[![npm version](https://img.shields.io/npm/v/%40bitbonsai%2Fmcpvault?style=flat&logo=npm&logoColor=white&color=9065ea&labelColor=262626)](https://www.npmjs.com/package/@bitbonsai/mcpvault)
-[![npm downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Fmcpvault.org%2Fapi%2Fdownloads.json&style=flat&logo=npm&logoColor=white&color=9065ea&labelColor=262626)](https://www.npmjs.com/package/@bitbonsai/mcpvault)
-[![GitHub Sponsors](https://img.shields.io/github/sponsors/BitBonsai?style=flat&logo=github&logoColor=white&color=9065ea&labelColor=262626)](https://github.com/sponsors/bitbonsai)
-[![Ko-Fi](https://img.shields.io/badge/Ko--fi-Support%20Me-9065ea?style=flat&logo=ko-fi&logoColor=white&labelColor=262626)](https://ko-fi.com/bitbonsai)
-[![Liberapay](https://img.shields.io/badge/Liberapay-Weekly%20Support-9065ea?style=flat&logo=liberapay&logoColor=white&labelColor=262626)](https://liberapay.com/bitbonsai/)
+[![GitHub Stars](https://img.shields.io/github/stars/bitbonsai/mcpvault?style=flat&logo=github&logoColor=white&color=9065ea&labelColor=262626)](https://github.com/bitbonsai/mcpvault) [![npm version](https://img.shields.io/npm/v/%40bitbonsai%2Fmcpvault?style=flat&logo=npm&logoColor=white&color=9065ea&labelColor=262626)](https://www.npmjs.com/package/@bitbonsai/mcpvault) [![npm downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Fmcpvault.org%2Fapi%2Fdownloads.json&style=flat&logo=npm&logoColor=white&color=9065ea&labelColor=262626)](https://www.npmjs.com/package/@bitbonsai/mcpvault) [![GitHub Sponsors](https://img.shields.io/github/sponsors/BitBonsai?style=flat&logo=github&logoColor=white&color=9065ea&labelColor=262626)](https://github.com/sponsors/bitbonsai) [![Ko-Fi](https://img.shields.io/badge/Ko--fi-Support%20Me-9065ea?style=flat&logo=ko-fi&logoColor=white&labelColor=262626)](https://ko-fi.com/bitbonsai) [![Liberapay](https://img.shields.io/badge/Liberapay-Weekly%20Support-9065ea?style=flat&logo=liberapay&logoColor=white&labelColor=262626)](https://liberapay.com/bitbonsai/)
 
 </div>
 
-## Universal Compatibility
+## Supported clients
 
-Works with any MCP-compatible AI assistant including Claude Desktop, Claude Code, ChatGPT Desktop (Enterprise+), OpenCode, Gemini CLI, OpenAI Codex, IntelliJ IDEA 2025.1+, Cursor IDE, Windsurf IDE, Ontheia, and future AI platforms that adopt the MCP standard.
+Configuration examples are available for Claude Desktop, Claude Code, ChatGPT Desktop (Enterprise+), OpenCode, Gemini CLI, OpenAI Codex, IntelliJ IDEA 2025.1+, Cursor, Windsurf, and Ontheia. Other clients can use MCPVault if they support local stdio MCP servers.
 
 https://github.com/user-attachments/assets/657ac4c6-1cd2-4cc3-829f-fd095a32f71c
 
-## Quick Start (5 minutes)
+## Quick start
 
 1. **Install Node.js runtime:**
 
    ```bash
-   # Download from https://nodejs.org (v18.0.0 or later)
+   # Download from https://nodejs.org (v22.12.0 or later)
    # or use a package manager like nvm, brew, apt, etc.
    ```
 
@@ -106,55 +99,41 @@ https://github.com/user-attachments/assets/657ac4c6-1cd2-4cc3-829f-fd095a32f71c
    - "Read my note called 'project-ideas.md'"
    - "Create a new note with today's date"
 
-**Success indicators:** Your AI should be able to list files and read notes from your vault.
+To verify the connection, ask your client to list MCPVault tools or read a known note.
 
-## Why MCPVault?
+## How it connects
 
-### Universal AI Compatibility
-
-Built on the open Model Context Protocol standard, MCPVault is not locked to any single AI provider. As more AI assistants adopt MCP, your investment in this tool grows more valuable. Today it works with Claude and ChatGPT - tomorrow it will work with whatever AI tools emerge.
-
-### Future-Proof Your Knowledge Base
-
-Instead of waiting for each AI company to build Obsidian integrations, MCPVault provides a universal adapter that works with any MCP-compatible assistant. One tool, endless possibilities.
-
-### Open Standard, No Lock-in
-
-MCP is an open protocol. You're not tied to any specific vendor or platform. Your notes remain yours, accessible through any compatible AI assistant.
+An MCP client starts MCPVault as a local stdio process and passes the vault path. MCPVault exposes the same tools to each supported client, so the server is not tied to one AI provider. Obsidian does not need to be running, and no Obsidian plugin is required.
 
 ## Features
 
-- ✅ Safe frontmatter parsing and validation using gray-matter with AST-aware updates that preserve raw formatting for unmodified fields
-- ✅ Path filtering to exclude `.obsidian` directory and other system files
-- ✅ **Complete MCP toolkit**: 14 methods covering all vault operations
+- AST-aware frontmatter updates preserve formatting for unchanged YAML fields.
+- Path checks block traversal, symlink escapes, dotfiles, `.obsidian`, `.git`, and `node_modules`.
+- Eighteen MCP tools cover note and file operations:
   - File operations: `read_note`, `write_note`, `patch_note`, `delete_note`, `move_note`, `move_file`
-  - Directory operations: `list_directory`
-  - Batch operations: `read_multiple_notes`
-  - Search: `search_notes` with multi-word matching and BM25 relevance reranking
-  - Metadata: `get_frontmatter`, `update_frontmatter`, `get_notes_info`, `get_vault_stats`
-  - Tag management: `manage_tags` (add, remove, list)
-- ✅ Write modes: `overwrite`, `append`, `prepend` for flexible content editing
-- ✅ Tag management: add, remove, and list tags in notes
-- ✅ Safe deletion with confirmation requirement to prevent accidents
-- ✅ Automatic path trimming to handle whitespace in inputs
-- ✅ TypeScript support with Node.js runtime (using tsx for execution)
-- ✅ Comprehensive error handling and validation
-- ✅ **Token-optimized responses**: 40-60% smaller responses with minified field names and compact JSON (v0.6.3+)
-- ✅ **Optional pretty-printing**: Set `prettyPrint: true` for human-readable debugging
-- ✅ **Performance optimized**: No unnecessary token consumption, efficient for large vaults
-- ✅ **Zero dependencies**: No Obsidian plugins required, works with any vault structure
+  - Partial reads: `get_note_outline`, `read_note_lines`
+  - Directory and batch reads: `list_directory`, `read_multiple_notes`
+  - Search: `search_notes` with multi-word matching and BM25 reranking
+  - Metadata and tags: `get_frontmatter`, `update_frontmatter`, `get_notes_info`, `get_vault_stats`, `manage_tags`, `list_all_tags`
+  - Wiki links: `wiki_link` resolves names and returns alternative paths when a name is ambiguous
+- `write_note` supports overwrite, append, and prepend modes.
+- `delete_note` and `move_file` require matching confirmation paths.
+- Path arguments are trimmed before validation.
+- Search and batch tools return compact fields by default; set `prettyPrint: true` for expanded output.
+- The package exports TypeScript declarations and public types.
+- MCPVault requires no Obsidian plugin.
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org) runtime (v18.0.0 or later)
+- [Node.js](https://nodejs.org) runtime (v22.12.0 or later)
 - An Obsidian vault (local directory with `.md`, `.markdown`, `.txt`, `.base`, or `.canvas` files)
 - MCP-compatible AI client (Claude Desktop, ChatGPT Desktop, Claude Code, etc.)
 
 ## Installation
 
-### For End Users (Recommended)
+### For end users
 
-No installation needed! Use `npx` to run directly:
+`npx` downloads and runs the package:
 
 ```bash
 npx @bitbonsai/mcpvault@latest /path/to/your/obsidian/vault
@@ -162,7 +141,7 @@ npx @bitbonsai/mcpvault@latest /path/to/your/obsidian/vault
 
 If you omit the vault path, the server uses your current working directory as the vault root.
 
-### For Developers
+### For developers
 
 1. Clone this repository
 2. Use the correct Node.js version:
@@ -183,7 +162,7 @@ npm install  # Corepack automatically uses npm 10.9.0
 npx @modelcontextprotocol/inspector npm start /path/to/your/vault
 ```
 
-**Pro tip:** Use MCP Inspector to test all server functionality before configuring with AI clients:
+Use MCP Inspector to test the server before adding it to a client:
 
 ```bash
 # Install globally for easier access
@@ -258,6 +237,42 @@ Add to your Claude Desktop configuration file:
 }
 ```
 
+**Read-only mode:**
+
+Add `--read-only` after the vault path to expose only read tools. Mutating tools are omitted from discovery and rejected if called directly.
+
+```json
+{
+  "mcpServers": {
+    "obsidian-read-only": {
+      "command": "npx",
+      "args": [
+        "@bitbonsai/mcpvault@latest",
+        "/Users/yourname/Documents/ResearchVault",
+        "--read-only"
+      ]
+    }
+  }
+}
+```
+
+The CLI also accepts `--read-only true` and `--read-only=true` for configuration systems that require explicit values. Omit the option, or set it to `false`, to keep normal read/write access.
+
+**Default search and listing exclusions:**
+
+Repeat `--exclude <subtree>` to hide vault-relative folders from `search_notes` and `list_directory` in every session. Per-call `excludePaths` add to these defaults. Direct read and write tools remain available for excluded paths.
+
+```json
+"args": [
+  "@bitbonsai/mcpvault@latest",
+  "/Users/yourname/Documents/ResearchVault",
+  "--exclude", "Archive",
+  "--exclude", "Snapshots/Old"
+]
+```
+
+MCPVault does not read Obsidian's `.obsidian/app.json`; exclusions stay explicit in the MCP server configuration.
+
 **Configuration File Locations:**
 
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -282,8 +297,7 @@ _Note: ChatGPT Desktop's MCP integration is currently limited to enterprise subs
 
 Claude Code uses `.claude.json` configuration file:
 
-**User-scoped (recommended):**
-Edit `~/.claude.json`:
+**User-scoped (recommended):** Edit `~/.claude.json`:
 
 ```json
 {
@@ -297,8 +311,7 @@ Edit `~/.claude.json`:
 }
 ```
 
-**Project-scoped:**
-Edit `.claude.json` in your project or add to the projects section:
+**Project-scoped:** Edit `.claude.json` in your project or add to the projects section:
 
 ```json
 {
@@ -361,12 +374,12 @@ Most modern MCP clients use similar JSON configuration patterns. Refer to your s
 - "List all markdown files in my 'Projects' folder"
 - "Delete the old draft note 'draft-ideas.md' (with confirmation)"
 
-#### Advanced Use Cases:
+#### Example workflows
 
-- **Knowledge Synthesis**: "Summarize all my research notes tagged with 'machine-learning' from the last month"
-- **Project Management**: "Update the status in all project notes to 'completed' and add today's date"
-- **Content Analysis**: "Find all notes that mention 'API design' and create a comprehensive guide"
-- **Smart Tagging**: "Review my untagged notes and suggest appropriate tags based on content"
+- "Summarize my research notes tagged with 'machine-learning' from the last month"
+- "Update the status in my project notes to 'completed' and add today's date"
+- "Find notes that mention 'API design' and draft a guide from them"
+- "Review my untagged notes and suggest tags based on their content"
 
 ## Troubleshooting
 
@@ -445,7 +458,7 @@ Read a note from the vault with parsed frontmatter.
 }
 ```
 
-**Response (optimized for tokens):**
+**Compact response:**
 
 ```json
 {
@@ -522,7 +535,7 @@ Write a note to the vault with optional frontmatter and write mode.
 
 ### `patch_note`
 
-Efficiently replace an exact string inside an existing note without rewriting the full file.
+Replace an exact string inside an existing note without rewriting the full file.
 
 **Request:**
 
@@ -578,7 +591,7 @@ Note: this includes non-note filenames (for example `pdf`, `png`, `jpg`) so AI a
 }
 ```
 
-**Response (optimized):**
+**Compact response:**
 
 ```json
 {
@@ -629,7 +642,7 @@ Delete a note from the vault (requires confirmation for safety).
 }
 ```
 
-**⚠️ Safety Note:** The `confirmPath` parameter must exactly match the `path` parameter to proceed with deletion. This prevents accidental deletions.
+**Confirmation:** `confirmPath` must exactly match `path` before deletion proceeds.
 
 ### `get_frontmatter`
 
@@ -647,7 +660,7 @@ Extract only the frontmatter from a note without reading the full content.
 }
 ```
 
-**Response (optimized, returns frontmatter directly):**
+**Compact response, returning frontmatter directly:**
 
 ```json
 {
@@ -731,7 +744,7 @@ Search for notes in the vault by content or frontmatter with multi-word matching
 }
 ```
 
-**Response (optimized with minified field names):**
+**Compact response:**
 
 ```json
 [
@@ -813,7 +826,7 @@ Move or rename any file in the vault with binary-safe file operations (file-only
 }
 ```
 
-**Safety Note:** `confirmOldPath` must exactly match `oldPath`, and `confirmNewPath` must exactly match `newPath`, otherwise the move is rejected.
+**Confirmation:** `confirmOldPath` must match `oldPath`, and `confirmNewPath` must match `newPath`.
 
 ### `read_multiple_notes`
 
@@ -833,7 +846,7 @@ Read multiple notes in a batch (maximum 10 files).
 }
 ```
 
-**Response (optimized, shortened field names):**
+**Compact response:**
 
 ```json
 {
@@ -897,7 +910,7 @@ Get metadata for notes without reading full content.
 }
 ```
 
-**Response (optimized, returns array directly):**
+**Compact response, returning an array directly:**
 
 ```json
 [
@@ -926,7 +939,7 @@ Get high-level vault statistics without reading note contents.
 }
 ```
 
-**Response (optimized):**
+**Compact response:**
 
 ```json
 {
@@ -943,9 +956,9 @@ Get high-level vault statistics without reading note contents.
 }
 ```
 
-## Security Considerations
+## Security boundaries
 
-This MCP server implements several security measures to protect your Obsidian vault:
+MCPVault applies these checks before file operations:
 
 ### Path Security
 
@@ -968,7 +981,7 @@ This MCP server implements several security measures to protect your Obsidian va
 ### Best Practices
 
 - **Least Privilege:** Server only accesses the specified vault directory
-- **Read-Only by Default:** Consider running with read-only permissions for sensitive vaults
+- **Read-Only Mode:** Run with `--read-only` for sensitive vaults; mutating tools are hidden and rejected
 - **Backup Recommended:** Always backup your vault before using write operations
 - **Network Isolation:** Server uses stdio transport (no network exposure)
 
@@ -978,13 +991,15 @@ This MCP server implements several security measures to protect your Obsidian va
 - **Vault Structure:** Directory structure is visible to AI assistants
 - **File Metadata:** Creation times, file sizes, etc. are accessible
 
-**⚠️ Important:** Only grant vault access to trusted AI conversations. The server provides full read/write access to your notes within the security boundaries above.
+Only grant write access to clients and conversations you trust. Use `--read-only` when the client does not need to modify notes.
 
 ## Architecture
 
 - `server.ts` - MCP server entry point
+- `src/cli.ts` - CLI option parsing for vault path, read-only mode, and default exclusions
+- `src/createServer.ts` - MCP tool registration, request routing, and discovery defaults
 - `src/frontmatter.ts` - YAML frontmatter handling with gray-matter
-- `src/filesystem.ts` - Safe file operations with path validation
+- `src/filesystem.ts` - File operations with path validation
 - `src/pathfilter.ts` - Directory and file filtering
 - `src/search.ts` - Note search functionality with content and frontmatter support
 - `src/uri.ts` - Obsidian URI generation for deep links
@@ -997,6 +1012,8 @@ This MCP server implements several security measures to protect your Obsidian va
 3. Make your changes and add tests
 4. Ensure all tests pass: `npm test`
 5. Submit a pull request
+
+Maintainers: production publishing is driven by GitHub Releases. See [RELEASING.md](RELEASING.md).
 
 ## License
 

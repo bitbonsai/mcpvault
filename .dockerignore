@@ -1,0 +1,12 @@
+# Keeps the build context sent to the Docker/Podman daemon small for the
+# website-shibumi/Containerfile build (context is the repo root; see the
+# Containerfile header for why). The Containerfile's explicit COPY list is
+# the real access-control boundary — this only trims what gets uploaded.
+.git
+node_modules
+dist
+website/
+website-shibumi/node_modules
+.plans/
+.triage/
+*.log

@@ -1,7 +1,8 @@
 import { join, resolve, relative, dirname } from 'path';
 import { homedir } from 'os';
-import { readdir, stat, readFile, writeFile, unlink, mkdir, access, rename, copyFile } from 'node:fs/promises';
-import { constants, realpathSync } from 'node:fs';
+import { readdir, stat, readFile, writeFile, open, unlink, mkdir, access, rename, copyFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { constants, lstatSync, realpathSync } from 'node:fs';
 import trash from 'trash';
 import { FrontmatterHandler } from './frontmatter.js';
 import { PathFilter } from './pathfilter.js';
@@ -33,10 +34,29 @@ export function classifyWriteError(error, path) {
     }
     return new Error(`Failed to write file: ${path} - ${error instanceof Error ? error.message : 'Unknown error'}`);
 }
+/**
+ * Strip an ATX heading's optional closing sequence of #s per CommonMark: it
+ * must be preceded by a space (or the text is nothing but #s, i.e. an empty
+ * heading with a closer and no content) and followed only by trailing spaces
+ * (already removed by the caller's trim). A closer with no preceding space
+ * (e.g. "Heading###") is not a valid closer and stays as literal text.
+ */
+function stripAtxClosingSequence(text) {
+    const withPrecedingSpace = /^(.*[ \t])#+$/.exec(text);
+    if (withPrecedingSpace) {
+        return withPrecedingSpace[1].replace(/[ \t]+$/, '');
+    }
+    if (/^#+$/.test(text)) {
+        return '';
+    }
+    return text;
+}
 export class FileSystemService {
     vaultPath;
     frontmatterHandler;
     pathFilter;
+    // shortcut: instance-local locks only, add cross-process coordination if shared-vault writers need it.
+    writeChains = new Map();
     constructor(vaultPath, pathFilter, frontmatterHandler) {
         this.vaultPath = vaultPath;
         const resolved = resolve(vaultPath);
@@ -79,7 +99,7 @@ export class FileSystemService {
         }
         return p;
     }
-    resolvePath(relativePath) {
+    resolvePath(relativePath, followSymlinks = false) {
         const normalizedPath = this.normalizePath(relativePath);
         const fullPath = resolve(join(this.vaultPath, normalizedPath));
         // Security check: ensure path is within vault (lexical)
@@ -87,48 +107,109 @@ export class FileSystemService {
         if (relativeToVault.startsWith('..')) {
             throw new Error(`Path traversal not allowed: ${relativePath}. Paths must be within the vault directory.`);
         }
-        // Security check: ensure symlinks don't escape vault boundary
-        try {
-            const realPath = realpathSync(fullPath);
-            const realRelative = relative(this.vaultPath, realPath);
-            if (realRelative.startsWith('..')) {
-                throw new Error(`Symlink target is outside vault: ${relativePath}. Symbolic links must resolve to a path within the vault directory.`);
-            }
-        }
-        catch (err) {
-            if (err instanceof Error && 'code' in err) {
-                const code = err.code;
-                if (code === 'ENOENT') {
-                    // File doesn't exist yet (e.g. writing a new note). Verify the parent directory resolves inside vault.
-                    try {
-                        const parentReal = realpathSync(dirname(fullPath));
-                        const parentRelative = relative(this.vaultPath, parentReal);
-                        if (parentRelative.startsWith('..')) {
-                            throw new Error(`Symlink target is outside vault: ${relativePath}. Symbolic links must resolve to a path within the vault directory.`);
-                        }
-                    }
-                    catch (parentErr) {
-                        // Parent doesn't exist either (will be created by mkdir). Lexical check above is sufficient.
-                        if (parentErr instanceof Error && parentErr.message.includes('outside vault')) {
-                            throw parentErr;
-                        }
-                    }
+        // Walk missing parents to the nearest existing ancestor, without following dangling links.
+        let candidate = fullPath;
+        while (true) {
+            try {
+                const realPath = realpathSync(candidate);
+                if (relative(this.vaultPath, realPath).startsWith('..')) {
+                    throw new Error(`Symlink target is outside vault: ${relativePath}. Symbolic links must resolve to a path within the vault directory.`);
                 }
-                else if (code === 'ELOOP') {
+                if (followSymlinks) {
+                    const target = resolve(realPath, relative(candidate, fullPath));
+                    if (!this.pathFilter.isAllowed(relative(this.vaultPath, target))) {
+                        throw new Error(`Access denied: ${relativePath}. The resolved target is restricted.`);
+                    }
+                    return target;
+                }
+                break;
+            }
+            catch (err) {
+                if (!(err instanceof Error) || !('code' in err))
+                    throw err;
+                if (err.code === 'ENOENT') {
+                    try {
+                        if (lstatSync(candidate).isSymbolicLink()) {
+                            throw new Error(`Cannot resolve symlink: ${relativePath}. Symbolic links must point to an existing path within the vault.`);
+                        }
+                    }
+                    catch (linkError) {
+                        if (!(linkError instanceof Error) || !('code' in linkError) || linkError.code !== 'ENOENT') {
+                            throw linkError;
+                        }
+                    }
+                    const parent = dirname(candidate);
+                    if (candidate === this.vaultPath || parent === candidate)
+                        throw err;
+                    candidate = parent;
+                }
+                else if (err.code === 'ELOOP') {
                     throw new Error(`Circular symlink detected: ${relativePath}. The symbolic link chain forms a loop.`);
                 }
-                else if (code === 'EACCES') {
+                else if (err.code === 'EACCES' || err.code === 'EPERM') {
                     throw new Error(`Permission denied resolving symlink: ${relativePath}. Cannot verify the symbolic link target is within the vault.`);
                 }
                 else {
                     throw err;
                 }
             }
-            else {
-                throw err;
-            }
         }
         return fullPath;
+    }
+    async withPathLock(path, fn) {
+        const fullPath = this.resolvePath(path, true);
+        const previous = this.writeChains.get(fullPath) ?? Promise.resolve();
+        let release;
+        const current = new Promise((resolve) => { release = resolve; });
+        this.writeChains.set(fullPath, current);
+        await previous;
+        try {
+            return await fn(fullPath);
+        }
+        finally {
+            release();
+            if (this.writeChains.get(fullPath) === current) {
+                this.writeChains.delete(fullPath);
+            }
+        }
+    }
+    async atomicWrite(fullPath, content) {
+        let mode;
+        try {
+            const target = await stat(fullPath);
+            if (!target.isFile()) {
+                throw new Error(`Cannot write non-regular file: ${relative(this.vaultPath, fullPath) || '/'}`);
+            }
+            mode = target.mode & 0o777;
+            await access(fullPath, constants.W_OK);
+        }
+        catch (error) {
+            if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT')
+                throw error;
+        }
+        await mkdir(dirname(fullPath), { recursive: true });
+        const tmpPath = join(dirname(fullPath), `.mcpvault-${randomUUID()}.tmp`);
+        const file = await open(tmpPath, 'wx', mode ?? 0o666);
+        try {
+            try {
+                await file.writeFile(content, 'utf-8');
+                // Creation applies umask; existing notes must retain their exact permissions.
+                if (mode !== undefined)
+                    await file.chmod(mode);
+                await file.sync();
+            }
+            finally {
+                await file.close();
+            }
+            await rename(tmpPath, fullPath);
+        }
+        catch (error) {
+            try {
+                await unlink(tmpPath);
+            }
+            catch { /* best effort */ }
+            throw error;
+        }
     }
     async readNote(path) {
         path = this.normalizePath(path);
@@ -163,7 +244,6 @@ export class FileSystemService {
     async writeNote(params) {
         const { content, frontmatter, mode = 'overwrite' } = params;
         const path = this.normalizePath(params.path);
-        const fullPath = this.resolvePath(path);
         if (!this.pathFilter.isAllowed(path)) {
             throw new Error(`Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`);
         }
@@ -178,50 +258,54 @@ export class FileSystemService {
                 throw new Error(`Invalid frontmatter: ${validation.errors.join(', ')}`);
             }
         }
-        try {
-            let finalContent;
-            if (mode === 'overwrite') {
-                // Original behavior - replace entire content
-                finalContent = frontmatter
-                    ? this.frontmatterHandler.stringify(frontmatter, content)
-                    : content;
-            }
-            else {
-                // For append/prepend, we need to read existing content
-                let existingNote;
-                try {
-                    existingNote = await this.readNote(path);
-                }
-                catch (error) {
-                    // File doesn't exist, treat as overwrite
+        // Serialize the read-modify-write against concurrent writers of the same file,
+        // and replace the file atomically so a torn/partial file is never observed.
+        return this.withPathLock(path, async (fullPath) => {
+            try {
+                let finalContent;
+                if (mode === 'overwrite') {
+                    // Original behavior - replace entire content
                     finalContent = frontmatter
                         ? this.frontmatterHandler.stringify(frontmatter, content)
                         : content;
                 }
-                if (existingNote) {
-                    // Merge frontmatter if provided
-                    const mergedFrontmatter = frontmatter
-                        ? { ...existingNote.frontmatter, ...frontmatter }
-                        : existingNote.frontmatter;
-                    const mergedContent = mode === 'append'
-                        ? existingNote.content + content
-                        : content + existingNote.content;
-                    if (existingNote.matter && existingNote.matter.trim() !== '') {
-                        // Preserve raw formatting for unmodified fields by only applying explicit updates
-                        finalContent = this.frontmatterHandler.preserveStringify(existingNote.matter, frontmatter || {}, mergedContent);
+                else {
+                    // For append/prepend, we need to read existing content
+                    let existingNote;
+                    try {
+                        existingNote = this.frontmatterHandler.parse(await readFile(fullPath, 'utf-8'));
                     }
-                    else {
-                        finalContent = this.frontmatterHandler.stringify(mergedFrontmatter, mergedContent);
+                    catch (error) {
+                        if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT')
+                            throw error;
+                        // File doesn't exist, treat as overwrite
+                        finalContent = frontmatter
+                            ? this.frontmatterHandler.stringify(frontmatter, content)
+                            : content;
+                    }
+                    if (existingNote) {
+                        // Merge frontmatter if provided
+                        const mergedFrontmatter = frontmatter
+                            ? { ...existingNote.frontmatter, ...frontmatter }
+                            : existingNote.frontmatter;
+                        const mergedContent = mode === 'append'
+                            ? existingNote.content + content
+                            : content + existingNote.content;
+                        if (existingNote.matter && existingNote.matter.trim() !== '') {
+                            // Preserve raw formatting for unmodified fields by only applying explicit updates
+                            finalContent = this.frontmatterHandler.preserveStringify(existingNote.matter, frontmatter || {}, mergedContent);
+                        }
+                        else {
+                            finalContent = this.frontmatterHandler.stringify(mergedFrontmatter, mergedContent);
+                        }
                     }
                 }
+                await this.atomicWrite(fullPath, finalContent);
             }
-            // Create directories if they don't exist
-            await mkdir(dirname(fullPath), { recursive: true });
-            await writeFile(fullPath, finalContent, 'utf-8');
-        }
-        catch (error) {
-            throw classifyWriteError(error, path);
-        }
+            catch (error) {
+                throw classifyWriteError(error, path);
+            }
+        });
     }
     async patchNote(params) {
         const { oldString, newString, replaceAll = false } = params;
@@ -257,44 +341,44 @@ export class FileSystemService {
             };
         }
         try {
-            // Read the existing note
-            const note = await this.readNote(path);
-            // Get the full content with frontmatter
-            const fullContent = note.originalContent;
-            // Count occurrences of oldString
-            const occurrences = fullContent.split(oldString).length - 1;
-            if (occurrences === 0) {
+            return await this.withPathLock(path, async (fullPath) => {
+                const note = await this.readNote(fullPath);
+                // Get the full content with frontmatter
+                const fullContent = note.originalContent;
+                // Count occurrences of oldString
+                const occurrences = fullContent.split(oldString).length - 1;
+                if (occurrences === 0) {
+                    return {
+                        success: false,
+                        path,
+                        message: `String not found in note: "${oldString.substring(0, 50)}${oldString.length > 50 ? '...' : ''}"`,
+                        matchCount: 0
+                    };
+                }
+                // If not replaceAll and multiple occurrences exist, fail
+                if (!replaceAll && occurrences > 1) {
+                    return {
+                        success: false,
+                        path,
+                        message: `Found ${occurrences} occurrences of the string. Use replaceAll=true to replace all occurrences, or provide a more specific string to match exactly one occurrence.`,
+                        matchCount: occurrences
+                    };
+                }
+                // Perform the replacement
+                // Use a replacer function so newString is inserted literally,
+                // without $ replacement pattern expansion ($$, $&, $`, $')
+                const updatedContent = replaceAll
+                    ? fullContent.split(oldString).join(newString)
+                    : fullContent.replace(oldString, () => newString);
+                // Write the updated content atomically
+                await this.atomicWrite(fullPath, updatedContent);
                 return {
-                    success: false,
+                    success: true,
                     path,
-                    message: `String not found in note: "${oldString.substring(0, 50)}${oldString.length > 50 ? '...' : ''}"`,
-                    matchCount: 0
-                };
-            }
-            // If not replaceAll and multiple occurrences exist, fail
-            if (!replaceAll && occurrences > 1) {
-                return {
-                    success: false,
-                    path,
-                    message: `Found ${occurrences} occurrences of the string. Use replaceAll=true to replace all occurrences, or provide a more specific string to match exactly one occurrence.`,
+                    message: `Successfully replaced ${replaceAll ? occurrences : 1} occurrence${occurrences > 1 ? 's' : ''}`,
                     matchCount: occurrences
                 };
-            }
-            // Perform the replacement
-            // Use a replacer function so newString is inserted literally,
-            // without $ replacement pattern expansion ($$, $&, $`, $')
-            const updatedContent = replaceAll
-                ? fullContent.split(oldString).join(newString)
-                : fullContent.replace(oldString, () => newString);
-            // Write the updated content
-            const fullPath = this.resolvePath(path);
-            await writeFile(fullPath, updatedContent, 'utf-8');
-            return {
-                success: true,
-                path,
-                message: `Successfully replaced ${replaceAll ? occurrences : 1} occurrence${occurrences > 1 ? 's' : ''}`,
-                matchCount: occurrences
-            };
+            });
         }
         catch (error) {
             return {
@@ -449,7 +533,7 @@ export class FileSystemService {
                 };
             }
             if (trashMode === 'system') {
-                await trash(fullPath);
+                await trash(fullPath, { glob: false });
                 return {
                     success: true,
                     path: path,
@@ -510,20 +594,43 @@ export class FileSystemService {
         }
         const oldFullPath = this.resolvePath(oldPath);
         const newFullPath = this.resolvePath(newPath);
+        if (oldFullPath === newFullPath) {
+            return {
+                success: false,
+                oldPath,
+                newPath,
+                message: `Source and target paths are the same: ${oldPath}. Please provide a different target path.`
+            };
+        }
+        const sourceDirectoryResult = {
+            success: false,
+            oldPath,
+            newPath,
+            message: `Source path is a directory: ${oldPath}. Please provide a file path.`
+        };
+        const targetDirectoryResult = {
+            success: false,
+            oldPath,
+            newPath,
+            message: `Target path is a directory: ${newPath}. Please provide a file path.`
+        };
+        const sourceMissingResult = {
+            success: false,
+            oldPath,
+            newPath,
+            message: `Source file not found: ${oldPath}. Use list_directory to see available files.`
+        };
         try {
-            // Read source content (will throw ENOENT if not found)
             let content;
             try {
                 content = await readFile(oldFullPath, 'utf-8');
             }
             catch (error) {
                 if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-                    return {
-                        success: false,
-                        oldPath,
-                        newPath,
-                        message: `Source file not found: ${oldPath}. Use list_directory to see available files.`
-                    };
+                    return sourceMissingResult;
+                }
+                if (error instanceof Error && 'code' in error && error.code === 'EISDIR') {
+                    return sourceDirectoryResult;
                 }
                 throw error;
             }
@@ -540,13 +647,29 @@ export class FileSystemService {
                 }
             }
             catch (error) {
-                if (error instanceof Error && 'code' in error && error.code === 'EEXIST') {
-                    return {
-                        success: false,
-                        oldPath,
-                        newPath,
-                        message: `Target file already exists: ${newPath}. Use overwrite=true to replace it.`
-                    };
+                if (error instanceof Error && 'code' in error) {
+                    if (error.code === 'EISDIR') {
+                        return targetDirectoryResult;
+                    }
+                    // Inspect only after a failed write; these codes also cover Windows directories.
+                    if (error.code === 'EEXIST' || error.code === 'EPERM' || error.code === 'EACCES') {
+                        try {
+                            if ((await stat(newFullPath)).isDirectory()) {
+                                return targetDirectoryResult;
+                            }
+                        }
+                        catch {
+                            // Preserve the write error if the target changed or cannot be inspected.
+                        }
+                    }
+                    if (error.code === 'EEXIST') {
+                        return {
+                            success: false,
+                            oldPath,
+                            newPath,
+                            message: `Target file already exists: ${newPath}. Use overwrite=true to replace it.`
+                        };
+                    }
                 }
                 throw error;
             }
@@ -736,31 +859,20 @@ export class FileSystemService {
         if (!this.pathFilter.isAllowed(path)) {
             throw new Error(`Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`);
         }
-        // Read the existing note
-        const note = await this.readNote(path);
-        // Prepare new frontmatter
-        const newFrontmatter = merge
-            ? { ...note.frontmatter, ...frontmatter }
-            : frontmatter;
-        // Validate the new frontmatter
-        const validation = this.frontmatterHandler.validate(newFrontmatter);
-        if (!validation.isValid) {
-            throw new Error(`Invalid frontmatter: ${validation.errors.join(', ')}`);
-        }
-        const fullPath = this.resolvePath(path);
-        if (merge && note.matter && note.matter.trim() !== '') {
-            // Preserve raw formatting for unmodified fields
-            const updatedContent = this.frontmatterHandler.preserveStringify(note.matter, frontmatter, note.content);
-            await writeFile(fullPath, updatedContent, 'utf-8');
-        }
-        else {
-            // Replace frontmatter entirely (or no existing matter to preserve)
-            await this.writeNote({
-                path,
-                content: note.content,
-                frontmatter: newFrontmatter
-            });
-        }
+        return this.withPathLock(path, async (fullPath) => {
+            const note = await this.readNote(fullPath);
+            const newFrontmatter = merge
+                ? { ...note.frontmatter, ...frontmatter }
+                : frontmatter;
+            const validation = this.frontmatterHandler.validate(newFrontmatter);
+            if (!validation.isValid) {
+                throw new Error(`Invalid frontmatter: ${validation.errors.join(', ')}`);
+            }
+            const updatedContent = merge && note.matter && note.matter.trim() !== ''
+                ? this.frontmatterHandler.preserveStringify(note.matter, frontmatter, note.content)
+                : this.frontmatterHandler.stringify(newFrontmatter, note.content);
+            await this.atomicWrite(fullPath, updatedContent);
+        });
     }
     async getNotesInfo(paths) {
         const results = await Promise.allSettled(paths.map(async (rawPath) => {
@@ -811,72 +923,73 @@ export class FileSystemService {
             };
         }
         try {
-            const note = await this.readNote(path);
-            let currentTags = [];
-            // Extract tags from frontmatter
-            if (note.frontmatter.tags) {
-                if (Array.isArray(note.frontmatter.tags)) {
-                    currentTags = note.frontmatter.tags;
+            return await this.withPathLock(path, async (fullPath) => {
+                const note = await this.readNote(fullPath);
+                let currentTags = [];
+                // Extract tags from frontmatter
+                if (note.frontmatter.tags) {
+                    if (Array.isArray(note.frontmatter.tags)) {
+                        currentTags = note.frontmatter.tags;
+                    }
+                    else if (typeof note.frontmatter.tags === 'string') {
+                        currentTags = [note.frontmatter.tags];
+                    }
                 }
-                else if (typeof note.frontmatter.tags === 'string') {
-                    currentTags = [note.frontmatter.tags];
+                // Also extract inline tags from content
+                const inlineTagMatches = note.content.match(/#[a-zA-Z0-9_-]+/g) || [];
+                const inlineTags = inlineTagMatches.map(tag => tag.slice(1)); // Remove #
+                currentTags = [...new Set([...currentTags, ...inlineTags])]; // Deduplicate
+                if (operation === 'list') {
+                    return {
+                        path,
+                        operation,
+                        tags: currentTags,
+                        success: true
+                    };
                 }
-            }
-            // Also extract inline tags from content
-            const inlineTagMatches = note.content.match(/#[a-zA-Z0-9_-]+/g) || [];
-            const inlineTags = inlineTagMatches.map(tag => tag.slice(1)); // Remove #
-            currentTags = [...new Set([...currentTags, ...inlineTags])]; // Deduplicate
-            if (operation === 'list') {
+                let newTags = [...currentTags];
+                if (operation === 'add') {
+                    for (const tag of tags) {
+                        if (!newTags.includes(tag)) {
+                            newTags.push(tag);
+                        }
+                    }
+                }
+                else if (operation === 'remove') {
+                    newTags = newTags.filter(tag => !tags.includes(tag));
+                }
+                // Build tag updates for preserveStringify
+                const tagUpdates = {};
+                if (newTags.length > 0) {
+                    tagUpdates.tags = newTags;
+                }
+                else {
+                    tagUpdates.tags = undefined;
+                }
+                // Write back the note with updated frontmatter, preserving raw formatting for unmodified fields
+                let updatedContent;
+                if (note.matter && note.matter.trim() !== '') {
+                    updatedContent = this.frontmatterHandler.preserveStringify(note.matter, tagUpdates, note.content);
+                }
+                else {
+                    const updatedFrontmatter = { ...note.frontmatter };
+                    if (newTags.length > 0) {
+                        updatedFrontmatter.tags = newTags;
+                    }
+                    else {
+                        delete updatedFrontmatter.tags;
+                    }
+                    updatedContent = this.frontmatterHandler.stringify(updatedFrontmatter, note.content);
+                }
+                await this.atomicWrite(fullPath, updatedContent);
                 return {
                     path,
                     operation,
-                    tags: currentTags,
-                    success: true
+                    tags: newTags,
+                    success: true,
+                    message: `Successfully ${operation === 'add' ? 'added' : 'removed'} tags`
                 };
-            }
-            let newTags = [...currentTags];
-            if (operation === 'add') {
-                for (const tag of tags) {
-                    if (!newTags.includes(tag)) {
-                        newTags.push(tag);
-                    }
-                }
-            }
-            else if (operation === 'remove') {
-                newTags = newTags.filter(tag => !tags.includes(tag));
-            }
-            // Build tag updates for preserveStringify
-            const tagUpdates = {};
-            if (newTags.length > 0) {
-                tagUpdates.tags = newTags;
-            }
-            else {
-                tagUpdates.tags = undefined;
-            }
-            // Write back the note with updated frontmatter, preserving raw formatting for unmodified fields
-            let updatedContent;
-            if (note.matter && note.matter.trim() !== '') {
-                updatedContent = this.frontmatterHandler.preserveStringify(note.matter, tagUpdates, note.content);
-            }
-            else {
-                const updatedFrontmatter = { ...note.frontmatter };
-                if (newTags.length > 0) {
-                    updatedFrontmatter.tags = newTags;
-                }
-                else {
-                    delete updatedFrontmatter.tags;
-                }
-                updatedContent = this.frontmatterHandler.stringify(updatedFrontmatter, note.content);
-            }
-            const fullPath = this.resolvePath(path);
-            await writeFile(fullPath, updatedContent, 'utf-8');
-            return {
-                path,
-                operation,
-                tags: newTags,
-                success: true,
-                message: `Successfully ${operation === 'add' ? 'added' : 'removed'} tags`
-            };
+            });
         }
         catch (error) {
             return {
@@ -945,6 +1058,100 @@ export class FileSystemService {
             return da !== db ? da - db : a.localeCompare(b);
         });
         return matches;
+    }
+    async getNoteOutline(path) {
+        path = this.normalizePath(path);
+        if (!this.pathFilter.isAllowed(path)) {
+            throw new Error(`Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`);
+        }
+        const fullPath = this.resolvePath(path);
+        const raw = await readFile(fullPath, 'utf-8');
+        const lines = raw.split('\n');
+        const headings = [];
+        // Per CommonMark ATX headings: up to 3 leading spaces are allowed before
+        // the #s; the heading may have no text at all (bare `#`); and an optional
+        // closing sequence of #s (preceded by a space, followed only by trailing
+        // spaces) is stripped from the returned text rather than kept literally.
+        const headingRegex = /^ {0,3}(#{1,6})(?:[ \t]+(.*))?$/;
+        // Frontmatter delimiters (---) can themselves look like content but never
+        // contain real headings; skip the block so YAML comments (# ...) inside it
+        // can't be misdetected as headings. Handles both LF and CRLF line endings,
+        // since split('\n') leaves a trailing \r on each line for CRLF files.
+        let inFrontmatter = false;
+        let frontmatterEnded = false;
+        // Fenced code blocks (``` or ~~~) can contain lines that look like
+        // headings (e.g. a shell comment or markdown example) but aren't real
+        // structure; track fence state and skip everything inside one.
+        // Per CommonMark: a fence marker may be indented up to 3 spaces; the
+        // opener records both its character and its length, and only a line
+        // with the *same* character, at least as many markers, and nothing but
+        // trailing whitespace after them closes it (mismatched length, a
+        // different character, or trailing content like a language tag on a
+        // would-be closer must NOT end the block).
+        let inFence = false;
+        let fenceChar = '';
+        let fenceLength = 0;
+        const fenceRegex = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.replace(/\r$/, '');
+            if (!frontmatterEnded && i === 0 && trimmed === '---') {
+                inFrontmatter = true;
+                continue;
+            }
+            if (inFrontmatter) {
+                if (trimmed === '---') {
+                    inFrontmatter = false;
+                    frontmatterEnded = true;
+                }
+                continue;
+            }
+            frontmatterEnded = true;
+            const fenceMatch = fenceRegex.exec(trimmed);
+            if (fenceMatch) {
+                const markers = fenceMatch[1];
+                const trailing = fenceMatch[2];
+                const char = markers.charAt(0);
+                if (!inFence) {
+                    inFence = true;
+                    fenceChar = char;
+                    fenceLength = markers.length;
+                }
+                else if (char === fenceChar && markers.length >= fenceLength && trailing.trim() === '') {
+                    inFence = false;
+                    fenceChar = '';
+                    fenceLength = 0;
+                }
+                // Any other fence-like line while inFence (mismatched char, too
+                // short, or has trailing content) is just code-block content.
+                continue;
+            }
+            if (inFence) {
+                continue;
+            }
+            const match = headingRegex.exec(trimmed);
+            if (match) {
+                const rawText = (match[2] ?? '').trim();
+                headings.push({ level: match[1].length, text: stripAtxClosingSequence(rawText), line: i + 1 });
+            }
+        }
+        return headings;
+    }
+    async readNoteLines(params) {
+        const path = this.normalizePath(params.path);
+        if (!this.pathFilter.isAllowed(path)) {
+            throw new Error(`Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`);
+        }
+        const fullPath = this.resolvePath(path);
+        const raw = await readFile(fullPath, 'utf-8');
+        const lines = raw.split('\n');
+        // Both bounds are clamped into [1, lines.length] rather than trusting
+        // caller-supplied indices directly - out-of-range start/end (0, negative,
+        // or past EOF) previously either threw or silently wrapped via
+        // Array.slice's negative-index behavior instead of clamping like end did.
+        const clampedStart = Math.min(Math.max(params.startLine, 1), lines.length);
+        const clampedEnd = Math.min(Math.max(params.endLine, clampedStart), lines.length);
+        return lines.slice(clampedStart - 1, clampedEnd).join('\n');
     }
     async getVaultStats(recentCount = 5) {
         let totalNotes = 0;

@@ -5,6 +5,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.18.1] - 2026-10-31
+
+### Fixed
+- In-place note writes now use atomic replacement and serialize read-modify-write operations per resolved target within one service instance. In-vault symlinks and existing POSIX file modes are preserved; failed writes leave the original note intact. Implemented in [#263](https://github.com/bitbonsai/mcpvault/pull/263), building on [#174](https://github.com/bitbonsai/mcpvault/pull/174), thanks [@ErycM](https://github.com/ErycM).
+- Append and prepend writes now stop on read errors instead of treating an unreadable note as a missing file.
+
+## [0.18.0] - 2026-10-31
+
+### Changed
+- **Breaking:** Raised the minimum supported Node.js version to 22.12.0 and removed Node 20 from CI ([#261](https://github.com/bitbonsai/mcpvault/pull/261)). Node 20 users should upgrade Node.js before installing 0.18.0, or stay on MCPVault 0.17.3.
+
+## [0.17.3] - 2026-10-30
+
+### Changed
+- Updated system-trash support from `trash` 9.0.0 to 10.1.1, including upstream WSL support and trash-path fixes ([#253](https://github.com/bitbonsai/mcpvault/pull/253)). Literal-filename safeguards from 0.17.2 remain enabled; MCPVault's API and Node.js 20 minimum are unchanged.
+
+## [0.17.2] - 2026-10-30
+
+### Security
+- `delete_note` with `trashMode: "system"` now treats the confirmed path as a literal filename. Brackets and other pattern characters in note or vault names no longer select unconfirmed neighboring files for trash ([#258](https://github.com/bitbonsai/mcpvault/pull/258)).
+
+### Changed
+- Refreshed locked dependencies, including Zod 4.6.7, MCP SDK 2.4.0, and YAML 2.9.1 ([#256](https://github.com/bitbonsai/mcpvault/pull/256), [#257](https://github.com/bitbonsai/mcpvault/pull/257)). System-trash support remains on `trash` 9.0.0.
+
+## [0.17.1] - 2026-10-23
+
+### Security
+- Hardened vault-boundary checks for symlink paths, including missing destination folders. Unresolved symlinks now fail closed; working in-vault symlinks remain supported.
+
+### Fixed
+- `move_note` now reports whether the source or target is a directory, preserves the source on failure, and rejects moves onto the same resolved path ([#247](https://github.com/bitbonsai/mcpvault/pull/247), thanks [@mvanhorn](https://github.com/mvanhorn)).
+
+## [0.17.0] - 2026-10-22
+
+### Added
+- Added repeatable `--exclude <subtree>` and `--exclude=<subtree>` CLI options for persistent vault-relative exclusions from `search_notes` and `list_directory` ([#235](https://github.com/bitbonsai/mcpvault/issues/235), [#249](https://github.com/bitbonsai/mcpvault/pull/249)).
+- Per-call `search_notes.excludePaths` values add to configured defaults. Direct read and write tools remain available for excluded paths.
+
+## [0.16.1] - 2026-10-22
+
+### Security
+- Raised the MCP client and server minimum to 2.3.1, picking up fixes for credential forwarding, cross-session message delivery, request validation, and bearer-token audience checks.
+- Refreshed Vitest, Vite, and `source-map-js` to patched releases.
+- Pinned system-trash support to `trash` 9.0.0 because the current 10.x dependency chain installs vulnerable `braces`, which has no patched release. The existing system-trash API and regression test remain unchanged.
+
+## [0.16.0] - 2026-08-17
+
+### Changed
+- Migrated to the official MCP TypeScript SDK v2 (`@modelcontextprotocol/server` 2.0.0, spec 2026-07-28).
+- The stdio server is now dual-era: legacy and 2026-07-28 clients are served from the same process, selected per connection. No latency change for existing clients (see https://mcpvault.org/benchmarks).
+
+### Added
+- Protocol matrix tests covering both protocol eras.
+- `benchmarks/` scripts comparing MCP v1 and MCP v2 latency.
+
+## [0.15.0] - 2026-08-09
+
+### Added
+- New `--read-only` CLI mode exposes only the 11 non-mutating tools and rejects direct calls to all vault mutations. Supports bare, spaced boolean, and `--read-only=true|false` forms for MCP client configuration compatibility ([#112](https://github.com/bitbonsai/mcpvault/issues/112), [#113](https://github.com/bitbonsai/mcpvault/pull/113), thanks @vdhome-dev)
+
+## [0.14.1] - 2026-08-08
+
+### Security
+- Dotfiles and hidden directories are now denied at any vault depth, closing an extension-filter bypass that allowed paths such as `.env`, `.bashrc`, and `.hidden.md` through note tools ([#115](https://github.com/bitbonsai/mcpvault/pull/115), thanks @sadegh)
+
+## [0.14.0] - 2026-08-08
+
+### Added
+- New `get_note_outline` tool returns headings with levels and line numbers without loading a full note, and ignores headings inside YAML frontmatter and CommonMark fenced code blocks ([#146](https://github.com/bitbonsai/mcpvault/pull/146), thanks @kartik7704)
+- New `read_note_lines` tool reads an inclusive line range for targeted access to large notes while enforcing the same path security boundaries as `read_note` ([#146](https://github.com/bitbonsai/mcpvault/pull/146), thanks @kartik7704)
+
+## [0.12.6] - 2026-08-06
+
+### Changed
+- Refreshed the MCP SDK, YAML parser, and development toolchain dependencies; standardized the server package on npm and removed the stale root Bun lockfile ([#178](https://github.com/bitbonsai/mcpvault/pull/178))
+
+## [0.12.5] - 2026-07-30
+
+### Fixed
+- The stdio server now exits cleanly when its client disconnects or sends `SIGTERM`/`SIGINT`, preventing orphaned MCPVault processes ([#159](https://github.com/bitbonsai/mcpvault/issues/159))
+
 ## [0.12.4] - 2026-07-23
 
 ### Fixed
