@@ -8,11 +8,32 @@ const yamlEngine = {
     // YAML 1.2 schema (default). Dates stay as strings, but this avoids the
     // yaml-1.1 bug where single-letter keys like 'y'/'n' become booleans.
     // Merge keys (<<) are not resolved, which is fine for Obsidian frontmatter.
-    parse: (str) => parse(str),
+    parse: (str) => parse(toLf(str)),
     stringify: (data) => stringify(data),
 };
 function withYamlEngine(options = {}) {
-    return { ...options, engines: { yaml: yamlEngine } };
+    return {
+        ...options,
+        engines: {
+            yaml: yamlEngine,
+            // gray-matter merges default engines; override JavaScript to prevent eval, including its js alias.
+            javascript: {
+                parse: () => { throw new Error('JavaScript frontmatter is not supported'); },
+            },
+        },
+    };
+}
+/** Use CRLF when present, otherwise LF. */
+function detectEol(text) {
+    return text.includes('\r\n') ? '\r\n' : '\n';
+}
+// gray-matter leaves a trailing CR before the closing delimiter; normalize before YAML parsing.
+function toLf(text) {
+    return text.replace(/\r\n?/g, '\n');
+}
+/** Re-apply CRLF to LF-only text. */
+function applyEol(text, eol) {
+    return eol === '\r\n' ? text.replace(/\n/g, '\r\n') : text;
 }
 /**
  * Parse a frontmatter value that may be a JSON string (LLM clients sometimes
@@ -67,7 +88,10 @@ export class FrontmatterHandler {
             if (!frontmatterData || Object.keys(frontmatterData).length === 0) {
                 return content;
             }
-            return matter.stringify(content, frontmatterData, withYamlEngine());
+            const eol = detectEol(content);
+            // Serialize only the header so body bytes stay untouched; drop gray-matter's empty-body newline.
+            const header = matter.stringify('', frontmatterData, withYamlEngine()).slice(0, -1);
+            return applyEol(header, eol) + content + (content.endsWith('\n') ? '' : eol);
         }
         catch (error) {
             throw new Error(`Failed to stringify frontmatter: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -137,9 +161,11 @@ export class FrontmatterHandler {
                 if (!updates || Object.keys(updates).length === 0) {
                     return content;
                 }
-                return matter.stringify(content, updates, withYamlEngine());
+                return this.stringify(updates, content);
             }
-            const doc = parseDocument(rawMatter.trimStart());
+            // Normalize only YAML; preserve the body's original bytes.
+            const eol = rawMatter.includes('\r\n') ? '\r\n' : detectEol(content);
+            const doc = parseDocument(toLf(rawMatter).trimStart());
             for (const [key, value] of Object.entries(updates)) {
                 if (value === undefined) {
                     doc.delete(key);
@@ -148,8 +174,8 @@ export class FrontmatterHandler {
                     doc.set(key, value);
                 }
             }
-            const yamlContent = doc.toString();
-            return `---\n${yamlContent}---\n${content}`;
+            const yamlContent = applyEol(doc.toString(), eol);
+            return `---${eol}${yamlContent}---${eol}${content}`;
         }
         catch (error) {
             throw new Error(`Failed to stringify frontmatter: ${error instanceof Error ? error.message : 'Unknown error'}`);

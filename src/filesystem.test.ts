@@ -1066,6 +1066,62 @@ This note has frontmatter and should be deleted successfully.`;
 // FRONTMATTER INTEGRATION TESTS
 // ============================================================================
 
+describe.each(["\n", "\r\n"])("note mutations with %j line endings", (eol) => {
+  const body = `# Head${eol}body line${eol}`;
+
+  describe.each(["missing", "empty", "flow tags", "block tags"])("%s frontmatter", (kind) => {
+    test.each(["update", "replace", "add tags", "remove tags", "append", "prepend"])(
+      "%s preserves line endings and content",
+      async (operation) => {
+        const path = "line-endings.md";
+        const prefix = kind === "missing" ? "" : [
+          "---",
+          ...(kind === "flow tags" ? ["tags: [a]"] : kind === "block tags" ? ["tags:", "  - a"] : []),
+          "---",
+          ""
+        ].join(eol);
+        await writeFile(join(testVaultPath, path), prefix + body);
+        let expectedBody = body;
+        const expectedTags = kind.endsWith("tags") ? ["a"] : undefined;
+
+        if (operation === "update" || operation === "replace") {
+          await fileSystem.updateFrontmatter({
+            path,
+            frontmatter: { status: "ok" },
+            merge: operation === "update"
+          });
+        } else if (operation === "add tags" || operation === "remove tags") {
+          const result = await fileSystem.manageTags({
+            path,
+            operation: operation === "add tags" ? "add" : "remove",
+            tags: [operation === "add tags" ? "b" : "a"]
+          });
+          expect(result.success).toBe(true);
+        } else {
+          const content = `new line${eol}`;
+          await fileSystem.writeNote({
+            path,
+            content,
+            frontmatter: { status: "ok" },
+            mode: operation as "append" | "prepend"
+          });
+          expectedBody = operation === "append" ? body + content : content + body;
+        }
+
+        const raw = await readFile(join(testVaultPath, path), "utf-8");
+        const note = await fileSystem.readNote(path);
+        expect(note.content).toBe(expectedBody);
+        expect(note.frontmatter.tags).toEqual(
+          operation === "replace" || operation === "remove tags" ? undefined :
+            operation === "add tags" ? [...(expectedTags || []), "b"] : expectedTags
+        );
+        if (!operation.endsWith("tags")) expect(note.frontmatter.status).toBe("ok");
+        expect(raw.replaceAll(eol, "")).not.toMatch(/[\r\n]/);
+      }
+    );
+  });
+});
+
 test("write_note with frontmatter", async () => {
   await fileSystem.writeNote({
     path: "test.md",

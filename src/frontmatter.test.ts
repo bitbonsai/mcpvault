@@ -1,4 +1,4 @@
-import { test, expect, describe } from "vitest";
+import { test, expect, describe, vi } from "vitest";
 import { FrontmatterHandler, parseFrontmatter } from "./frontmatter.js";
 
 const handler = new FrontmatterHandler();
@@ -32,6 +32,38 @@ This is a test note without frontmatter.`;
 
   expect(result.frontmatter).toEqual({});
   expect(result.content).toBe(content);
+});
+
+describe.each(["\n", "\r\n"])("executable frontmatter with %j line endings", (eol) => {
+  test.each(["javascript", "js", "JavaScript", "JS"].flatMap((language) => [
+    `---${language}`,
+    `\uFEFF---${language}`
+  ]))("keeps %j as content without executing it", (opening) => {
+    const probe = vi.fn(() => ({ executed: true }));
+    vi.stubGlobal("__mcpvaultFrontmatterProbe", probe);
+    try {
+      const note = [opening, "globalThis.__mcpvaultFrontmatterProbe()", "---", "Body", ""].join(eol);
+      const parsed = handler.parse(note);
+
+      expect(probe).not.toHaveBeenCalled();
+      expect(parsed.frontmatter).toEqual({});
+      expect(parsed.content).toBe(note);
+      expect(parsed.originalContent).toBe(note);
+
+      const updated = handler.updateFrontmatter(note, { status: "ok" });
+      expect(handler.parse(updated).frontmatter).toEqual({ status: "ok" });
+      expect(handler.parse(updated).content).toBe(note);
+      expect(probe).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+test("safe JSON frontmatter still parses", () => {
+  const note = '---json\n{"tags":["a"]}\n---\nBody';
+  expect(handler.parse(note).frontmatter).toEqual({ tags: ["a"] });
+  expect(handler.parse(note).content).toBe("Body");
 });
 
 test("stringify with frontmatter", () => {
@@ -213,5 +245,98 @@ describe("parseFrontmatter", () => {
 
   test("throws for a number value", () => {
     expect(() => parseFrontmatter(42)).toThrow("frontmatter must be a JSON object");
+  });
+});
+
+const crlfNote = [
+  "---",
+  "title: Test",
+  "tags:",
+  "  - a",
+  "---",
+  "",
+  "# Head",
+  "body line",
+  "",
+].join("\r\n");
+
+describe("CRLF notes", () => {
+  test.each(["tags: [a]", "tags:\r\n  - a", 'tags: ["a"]'])(
+    "parses %s before updating without changing raw content",
+    (yaml) => {
+      const body = "\r\n# Head\r\nbody line";
+      const note = `---\r\n${yaml}\r\n---\r\n${body}`;
+      const parsed = handler.parse(note);
+
+      expect(parsed.frontmatter.tags).toEqual(["a"]);
+      expect(parsed.content).toBe(body);
+      expect(parsed.originalContent).toBe(note);
+      expect(parsed.matter).toBe(`\r\n${yaml}\r`);
+
+      const out = handler.updateFrontmatter(note, { status: "ok" });
+      expect(handler.parse(out).frontmatter).toEqual({ tags: ["a"], status: "ok" });
+      expect(handler.parse(out).content).toBe(body);
+      expect(out.replace(/\r\n/g, "")).not.toContain("\n");
+    }
+  );
+
+  test.each(["", "---\r\n---\r\n"])(
+    "adds frontmatter to CRLF notes with empty or missing frontmatter (%j)",
+    (prefix) => {
+      const body = "# Head\r\nbody line\r\n";
+      const out = handler.updateFrontmatter(prefix + body, { status: "ok" });
+
+      expect(handler.parse(out).frontmatter).toEqual({ status: "ok" });
+      expect(handler.parse(out).content).toBe(body);
+      expect(out.startsWith("---\r\n")).toBe(true);
+      expect(out.replace(/\r\n/g, "")).not.toContain("\n");
+    }
+  );
+
+  test("stringify uses CRLF without rewriting body characters", () => {
+    const body = "# Head\r\nbody\rwith carriage return\r\n";
+    const out = handler.stringify({ tags: ["a"] }, body);
+
+    expect(out).toBe(`---\r\ntags:\r\n  - a\r\n---\r\n${body}`);
+  });
+
+  test("parse does not leak \r into frontmatter values", () => {
+    const parsed = handler.parse(crlfNote);
+
+    expect(parsed.frontmatter.title).toBe("Test");
+    expect(parsed.frontmatter.tags).toEqual(["a"]);
+  });
+
+  test("updateFrontmatter keeps tags intact and does not quote them", () => {
+    const out = handler.updateFrontmatter(crlfNote, { status: "ok" });
+
+    expect(out).not.toContain('"a\r"');
+    expect(out).not.toContain("a\r\r");
+    expect(handler.parse(out).frontmatter.tags).toEqual(["a"]);
+    expect(handler.parse(out).frontmatter.status).toBe("ok");
+  });
+
+  test("updateFrontmatter preserves CRLF throughout the file", () => {
+    const out = handler.updateFrontmatter(crlfNote, { status: "ok" });
+
+    // every \n must be part of a \r\n pair — no mixed endings
+    expect(out.replace(/\r\n/g, "")).not.toContain("\n");
+    expect(out.startsWith("---\r\n")).toBe(true);
+  });
+
+  test("appending to a CRLF note does not corrupt frontmatter", () => {
+    const parsed = handler.parse(crlfNote);
+    const out = handler.preserveStringify(parsed.matter, {}, parsed.content + "appended\r\n");
+
+    expect(handler.parse(out).frontmatter.tags).toEqual(["a"]);
+    expect(out).toContain("appended");
+  });
+
+  test("LF notes stay LF (no regression)", () => {
+    const lfNote = crlfNote.replace(/\r\n/g, "\n");
+    const out = handler.updateFrontmatter(lfNote, { status: "ok" });
+
+    expect(out).not.toContain("\r");
+    expect(handler.parse(out).frontmatter.tags).toEqual(["a"]);
   });
 });
