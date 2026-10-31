@@ -1004,6 +1004,7 @@ Only grant write access to clients and conversations you trust. Use `--read-only
 - `src/search.ts` - Note search functionality with content and frontmatter support
 - `src/uri.ts` - Obsidian URI generation for deep links
 - `src/types.ts` - TypeScript type definitions
+- `scripts/release.mjs` - Repository release command with readiness checks and user confirmation
 
 ## Contributing
 
@@ -1013,7 +1014,7 @@ Only grant write access to clients and conversations you trust. Use `--read-only
 4. Ensure all tests pass: `npm test`
 5. Submit a pull request
 
-Maintainers: production publishing is driven by GitHub Releases. See [RELEASING.md](RELEASING.md).
+Maintainers: run `npm run release` from prepared `main` to create the GitHub Release that triggers npm publishing. Use `npm run release -- --check` for a read-only preview. See [RELEASING.md](RELEASING.md).
 
 ## License
 

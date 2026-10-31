@@ -2,7 +2,7 @@
 
 Production releases are created through GitHub Releases. Publishing a release triggers `.github/workflows/publish.yml`, which tests, builds, and publishes the matching package version to npm with provenance.
 
-Do not backfill a GitHub Release for `0.15.0`: that version was published manually, and publishing a release now would trigger a duplicate npm publish. Start this process with the next version.
+Never create a GitHub Release for a version already on npm, including versions published manually. That would trigger a duplicate npm publish.
 
 ## 1. Prepare the release in a PR
 
@@ -17,40 +17,39 @@ The release PR must contain every artifact users will receive:
 
 Run the root tests, build, audit, dry-run package, and website build before merging.
 
-## 2. Verify main
+## 2. Check release readiness
 
-After the release PR merges, wait for required main checks to pass. Confirm the intended version is not already on npm:
+After the release PR merges, switch to clean, up-to-date `main`. Run:
 
 ```bash
-VERSION=$(node -p "require('./package.json').version")
-npm view "@bitbonsai/mcpvault@$VERSION" version
+npm run release -- --check
 ```
 
-A not-found response is expected before publishing. Stop if npm already has the version.
+The repository-only command in `scripts/release.mjs` reads the version from `package.json` and release notes from the matching `CHANGELOG.md` entry. It checks that local `main` matches GitHub, CI and CodeQL passed for that exact commit, and the npm version, GitHub Release, and tag do not already exist. Registry or GitHub errors stop the release.
+
+This check prints the release preview without publishing anything. It does not bump versions or prepare the release PR.
 
 ## 3. Publish a GitHub Release
 
-Write concise release notes from the matching changelog entry, then create the release. This command creates the `vX.Y.Z` tag at the selected main commit and publishes the GitHub Release:
+Run this in your own terminal:
 
 ```bash
-VERSION=$(node -p "require('./package.json').version")
-gh release create "v$VERSION" \
-  --repo bitbonsai/mcpvault \
-  --target main \
-  --title "v$VERSION" \
-  --notes-file /tmp/mcpvault-release-notes.md
+npm run release
 ```
 
-Do not use generated notes for the first GitHub Release because the repository has no historical release tags; use the curated changelog entry instead.
+Review the version, commit, and changelog notes, then type the displayed tag to confirm. The command first creates the tag at the checked commit, then publishes its GitHub Release with notes directly from the changelog. Publishing that release triggers npm publication through GitHub Actions. Keep npm 2FA enabled; the workflow uses the package's trusted publisher configuration.
+
+The assistant may run `--check`; final confirmation belongs to the user. There is no non-interactive publish flag. An existing release is never recreated or automatically retried.
 
 ## 4. Verify publication
 
 Watch the `Publish` workflow and verify npm after it succeeds:
 
 ```bash
+VERSION=$(node -p "require('./package.json').version")
 gh run list --repo bitbonsai/mcpvault --workflow Publish --limit 1
 npm view @bitbonsai/mcpvault version
-npx --yes "@bitbonsai/mcpvault@$VERSION" --version
+(cd "$(mktemp -d)" && npx --yes "@bitbonsai/mcpvault@$VERSION" --version)
 ```
 
 Confirm the GitHub Release tag, npm version, installed CLI version, and website release copy all agree before considering the release complete.
@@ -58,6 +57,7 @@ Confirm the GitHub Release tag, npm version, installed CLI version, and website 
 ## Failure handling
 
 - npm versions are immutable. Never bump or republish the same version after a partial failure.
+- If the command creates the tag but GitHub Release creation fails, inspect that tag and recover the release manually. The command stops on existing tags rather than guessing whether a retry is safe.
 - If the workflow fails before npm publication, fix the workflow and rerun it.
 - If npm already shows the version, do not rerun the publish step; verify the package and repair only the missing release metadata.
 - `npm run publish:latest` is an emergency fallback, not the normal production path. It does not provide the GitHub Release-driven provenance flow.
