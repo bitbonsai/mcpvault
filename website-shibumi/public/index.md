@@ -16,6 +16,7 @@ MCPVault reads, searches, and edits local vault files. Obsidian can stay closed,
 
 ## Recent Updates
 
+- **v0.18.3 (November 2026):** Note metadata now recognizes frontmatter in CRLF notes. LF behavior and note contents stay unchanged.
 - **v0.18.2 (October 2026):** CRLF notes keep their tags and line endings. JavaScript frontmatter is treated as note content and never executed. ([#163](https://github.com/bitbonsai/mcpvault/pull/163), thanks [@badigit](https://github.com/badigit))
 - **v0.18.1 (October 2026):** Safer note writes preserve in-vault symlinks and POSIX file modes. Updates queue per note within one server instance, and files are replaced atomically. ([#263](https://github.com/bitbonsai/mcpvault/pull/263), thanks [@ErycM](https://github.com/ErycM))
 - **v0.18.0 (October 2026):** Requires Node.js 22.12.0 or later. Node 20 users should upgrade Node.js or stay on MCPVault 0.17.3. ([#261](https://github.com/bitbonsai/mcpvault/pull/261))

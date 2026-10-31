@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.3] - 2026-11-01
+
+### Fixed
+- `get_notes_info` now recognizes YAML frontmatter in CRLF notes, including empty frontmatter blocks, matching its LF behavior. Note contents stay unchanged.
+
 ## [0.18.2] - 2026-10-31
 
 ### Security
