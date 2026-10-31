@@ -15,6 +15,7 @@ export declare class FileSystemService {
     private vaultPath;
     private frontmatterHandler;
     private pathFilter;
+    private writeChains;
     constructor(vaultPath: string, pathFilter?: PathFilter, frontmatterHandler?: FrontmatterHandler);
     /**
      * Normalize an incoming path to be vault-relative. Strips leading slashes
@@ -23,6 +24,8 @@ export declare class FileSystemService {
      */
     private normalizePath;
     private resolvePath;
+    private withPathLock;
+    private atomicWrite;
     readNote(path: string): Promise<ParsedNote>;
     writeNote(params: NoteWriteParams): Promise<void>;
     patchNote(params: PatchNoteParams): Promise<PatchNoteResult>;
