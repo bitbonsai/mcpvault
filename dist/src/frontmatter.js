@@ -12,7 +12,16 @@ const yamlEngine = {
     stringify: (data) => stringify(data),
 };
 function withYamlEngine(options = {}) {
-    return { ...options, engines: { yaml: yamlEngine } };
+    return {
+        ...options,
+        engines: {
+            yaml: yamlEngine,
+            // gray-matter merges default engines; override JavaScript to prevent eval, including its js alias.
+            javascript: {
+                parse: () => { throw new Error('JavaScript frontmatter is not supported'); },
+            },
+        },
+    };
 }
 /** Use CRLF when present, otherwise LF. */
 function detectEol(text) {

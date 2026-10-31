@@ -1,4 +1,4 @@
-import { test, expect, describe } from "vitest";
+import { test, expect, describe, vi } from "vitest";
 import { FrontmatterHandler, parseFrontmatter } from "./frontmatter.js";
 
 const handler = new FrontmatterHandler();
@@ -32,6 +32,38 @@ This is a test note without frontmatter.`;
 
   expect(result.frontmatter).toEqual({});
   expect(result.content).toBe(content);
+});
+
+describe.each(["\n", "\r\n"])("executable frontmatter with %j line endings", (eol) => {
+  test.each(["javascript", "js", "JavaScript", "JS"].flatMap((language) => [
+    `---${language}`,
+    `\uFEFF---${language}`
+  ]))("keeps %j as content without executing it", (opening) => {
+    const probe = vi.fn(() => ({ executed: true }));
+    vi.stubGlobal("__mcpvaultFrontmatterProbe", probe);
+    try {
+      const note = [opening, "globalThis.__mcpvaultFrontmatterProbe()", "---", "Body", ""].join(eol);
+      const parsed = handler.parse(note);
+
+      expect(probe).not.toHaveBeenCalled();
+      expect(parsed.frontmatter).toEqual({});
+      expect(parsed.content).toBe(note);
+      expect(parsed.originalContent).toBe(note);
+
+      const updated = handler.updateFrontmatter(note, { status: "ok" });
+      expect(handler.parse(updated).frontmatter).toEqual({ status: "ok" });
+      expect(handler.parse(updated).content).toBe(note);
+      expect(probe).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+test("safe JSON frontmatter still parses", () => {
+  const note = '---json\n{"tags":["a"]}\n---\nBody';
+  expect(handler.parse(note).frontmatter).toEqual({ tags: ["a"] });
+  expect(handler.parse(note).content).toBe("Body");
 });
 
 test("stringify with frontmatter", () => {
