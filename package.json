@@ -34,6 +34,7 @@
     "publish:dry": "npm publish --dry-run",
     "publish:beta": "npm publish --tag beta",
     "publish:latest": "npm publish",
+    "release": "node scripts/release.mjs",
     "ship": "bun scripts/ship.ts",
     "ship:setup": "bun scripts/ship.ts --setup",
     "ship:update": "bun scripts/ship.ts --update"
