@@ -896,7 +896,7 @@ export class FileSystemService {
             // Quick check for frontmatter without reading full content
             const file = await readFile(fullPath, 'utf-8');
             const firstChunk = file.slice(0, 100);
-            const hasFrontmatter = firstChunk.startsWith('---\n');
+            const hasFrontmatter = /^---\r?\n/.test(firstChunk);
             return {
                 path,
                 size,

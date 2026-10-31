@@ -1066,6 +1066,26 @@ This note has frontmatter and should be deleted successfully.`;
 // FRONTMATTER INTEGRATION TESTS
 // ============================================================================
 
+test.each([
+  { label: "LF frontmatter", content: "---\ntags: [a]\n---\nBody\n", hasFrontmatter: true },
+  { label: "CRLF frontmatter", content: "---\r\ntags: [a]\r\n---\r\nBody\r\n", hasFrontmatter: true },
+  { label: "empty LF frontmatter", content: "---\n---\nBody", hasFrontmatter: true },
+  { label: "empty CRLF frontmatter", content: "---\r\n---\r\nBody", hasFrontmatter: true },
+  { label: "plain content", content: "# Note\r\nBody\r\n", hasFrontmatter: false },
+  { label: "delimiter inside body", content: "Body\r\n---\r\ntags: [a]\r\n---\r\n", hasFrontmatter: false },
+  { label: "four-dash rule", content: "----\r\nBody", hasFrontmatter: false },
+  { label: "empty note", content: "", hasFrontmatter: false },
+])("getNotesInfo detects $label without changing content", async ({ content, hasFrontmatter }) => {
+  const path = "info.md";
+  await writeFile(join(testVaultPath, path), content);
+
+  const info = await fileSystem.getNotesInfo([path]);
+
+  expect(info).toHaveLength(1);
+  expect(info[0]).toMatchObject({ path, hasFrontmatter, size: Buffer.byteLength(content) });
+  expect(await readFile(join(testVaultPath, path), "utf-8")).toBe(content);
+});
+
 describe.each(["\n", "\r\n"])("note mutations with %j line endings", (eol) => {
   const body = `# Head${eol}body line${eol}`;
 

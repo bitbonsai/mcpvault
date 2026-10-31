@@ -38,6 +38,19 @@ interface Update {
 
 const OLDER_UPDATES: Update[] = [
   {
+    version: "v0.18.2",
+    date: "October 2026",
+    body: (
+      <>
+        CRLF notes keep their tags and line endings.
+        JavaScript frontmatter is treated as note content and never executed (
+        <a href="https://github.com/bitbonsai/mcpvault/pull/163" target="_blank" rel="noopener noreferrer">#163</a>
+        , thanks <a href="https://github.com/badigit" target="_blank" rel="noopener noreferrer">@badigit</a>
+        ).
+      </>
+    ),
+  },
+  {
     version: "v0.18.1",
     date: "October 2026",
     body: (
@@ -487,7 +500,7 @@ export function UpdateCallout() {
         <div class="callout-body">
           <div class="updates-heading">
             <h3>
-              Recent updates <span class="version-pill">v0.18.2</span>
+              Recent updates <span class="version-pill">v0.18.3</span>
             </h3>
             <button
               type="button"
@@ -513,11 +526,8 @@ export function UpdateCallout() {
           </div>
 
           <p class="latest-update">
-            <span class="entry-version">v0.18.2 (October 2026):</span> CRLF notes keep their tags and line endings.
-            JavaScript frontmatter is treated as note content and never executed (
-            <a href="https://github.com/bitbonsai/mcpvault/pull/163" target="_blank" rel="noopener noreferrer">#163</a>
-            , thanks <a href="https://github.com/badigit" target="_blank" rel="noopener noreferrer">@badigit</a>
-            ).
+            <span class="entry-version">v0.18.3 (November 2026):</span> Note metadata now recognizes frontmatter in CRLF notes.
+            LF behavior and note contents stay unchanged.
           </p>
 
           <div id="older-updates" class="older-updates is-collapsed" data-updates-panel x-bind:class="{ 'is-expanded': expanded, 'is-collapsed': !expanded }">
