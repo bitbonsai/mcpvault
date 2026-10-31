@@ -76,6 +76,12 @@ describe("GET / (HTML)", () => {
     expect(body).toContain(`<span class="version-pill">v${packageVersion}</span>`);
     for (const content of [body, markdown]) {
       expect(content).toContain(`v${packageVersion} (October 2026)`);
+      expect(content).toContain("CRLF notes keep their tags and line endings.");
+      expect(content).toContain("JavaScript frontmatter is treated as note content and never executed");
+      expect(content).toContain("https://github.com/bitbonsai/mcpvault/pull/163");
+      expect(content).toContain("https://github.com/badigit");
+      expect(content).toContain("@badigit");
+      expect(content).toContain("v0.18.1 (October 2026)");
       expect(content).toContain("Safer note writes preserve in-vault symlinks and POSIX file modes.");
       expect(content).toContain("Updates queue per note within one server instance, and files are replaced atomically");
       expect(content).toContain("https://github.com/bitbonsai/mcpvault/pull/263");
