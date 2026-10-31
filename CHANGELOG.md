@@ -7,8 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-31
+
 ### Changed
-- **Breaking:** Raised the minimum supported Node.js version to 22.12.0 and removed Node 20 from CI. Node 20 users should upgrade Node.js before installing the next release, or stay on MCPVault 0.17.3.
+- **Breaking:** Raised the minimum supported Node.js version to 22.12.0 and removed Node 20 from CI ([#261](https://github.com/bitbonsai/mcpvault/pull/261)). Node 20 users should upgrade Node.js before installing 0.18.0, or stay on MCPVault 0.17.3.
 
 ## [0.17.3] - 2026-10-30
 
