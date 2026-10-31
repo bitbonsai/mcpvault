@@ -10,7 +10,7 @@ const yamlEngine = {
   // YAML 1.2 schema (default). Dates stay as strings, but this avoids the
   // yaml-1.1 bug where single-letter keys like 'y'/'n' become booleans.
   // Merge keys (<<) are not resolved, which is fine for Obsidian frontmatter.
-  parse: (str: string) => parse(str),
+  parse: (str: string) => parse(toLf(str)),
   stringify: (data: any) => stringify(data),
 };
 
@@ -18,19 +18,14 @@ function withYamlEngine(options: Record<string, any> = {}): Record<string, any> 
   return { ...options, engines: { yaml: yamlEngine } };
 }
 
-/** The dominant line ending of a chunk of text. Defaults to LF when there is none. */
+/** Use CRLF when present, otherwise LF. */
 function detectEol(text: string): '\r\n' | '\n' {
   return text.includes('\r\n') ? '\r\n' : '\n';
 }
 
-/**
- * Normalize line endings to LF for YAML parsing. Also drops stray CRs: gray-matter
- * hands back the raw matter of a CRLF note with a trailing \r (the one before the
- * closing ---), which YAML would otherwise fold into the last scalar — turning the
- * tag `a` into `a\r`, a different tag as far as Obsidian is concerned.
- */
+// gray-matter leaves a trailing CR before the closing delimiter; normalize before YAML parsing.
 function toLf(text: string): string {
-  return text.replace(/\r\n/g, '\n').replace(/\r/g, '');
+  return text.replace(/\r\n?/g, '\n');
 }
 
 /** Re-apply CRLF to LF-only text. */
@@ -68,15 +63,8 @@ export class FrontmatterHandler {
   parse(content: string): ParsedNote {
     try {
       const parsed = matter(content, withYamlEngine());
-      // On a CRLF note the raw matter carries stray CRs that YAML folds into the
-      // last scalar, so re-parse the frontmatter from an LF-normalized copy.
-      // content/originalContent stay byte-identical — patch_note matches on them.
-      let data = parsed.data;
-      if (parsed.matter && parsed.matter.includes('\r')) {
-        data = (parse(toLf(parsed.matter)) as Record<string, any>) ?? {};
-      }
       return {
-        frontmatter: data,
+        frontmatter: parsed.data,
         content: parsed.content,
         originalContent: content,
         matter: parsed.matter
@@ -99,7 +87,10 @@ export class FrontmatterHandler {
         return content;
       }
 
-      return matter.stringify(content, frontmatterData, withYamlEngine());
+      const eol = detectEol(content);
+      // Serialize only the header so body bytes stay untouched; drop gray-matter's empty-body newline.
+      const header = matter.stringify('', frontmatterData, withYamlEngine()).slice(0, -1);
+      return applyEol(header, eol) + content + (content.endsWith('\n') ? '' : eol);
     } catch (error) {
       throw new Error(`Failed to stringify frontmatter: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -184,12 +175,10 @@ export class FrontmatterHandler {
         if (!updates || Object.keys(updates).length === 0) {
           return content;
         }
-        return matter.stringify(content, updates, withYamlEngine());
+        return this.stringify(updates, content);
       }
 
-      // Keep the note's own line endings: the YAML round-trip is done in LF and
-      // re-encoded afterwards, so a CRLF note does not come back with an LF
-      // frontmatter block glued onto a CRLF body.
+      // Normalize only YAML; preserve the body's original bytes.
       const eol = rawMatter.includes('\r\n') ? '\r\n' : detectEol(content);
       const doc = parseDocument(toLf(rawMatter).trimStart());
       for (const [key, value] of Object.entries(updates)) {

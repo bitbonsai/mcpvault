@@ -998,7 +998,7 @@ Only grant write access to clients and conversations you trust. Use `--read-only
 - `server.ts` - MCP server entry point
 - `src/cli.ts` - CLI option parsing for vault path, read-only mode, and default exclusions
 - `src/createServer.ts` - MCP tool registration, request routing, and discovery defaults
-- `src/frontmatter.ts` - YAML frontmatter handling with gray-matter
+- `src/frontmatter.ts` - YAML frontmatter handling with gray-matter, preserving formatting and CRLF line endings
 - `src/filesystem.ts` - File operations with path validation
 - `src/pathfilter.ts` - Directory and file filtering
 - `src/search.ts` - Note search functionality with content and frontmatter support

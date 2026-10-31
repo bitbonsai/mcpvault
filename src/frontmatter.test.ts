@@ -216,13 +216,6 @@ describe("parseFrontmatter", () => {
   });
 });
 
-// ── CRLF (Windows line endings) ──────────────────────────────────────────────
-// Regression: on a CRLF note the raw matter carries a trailing \r into the YAML
-// scalar, so `updateFrontmatter` rewrote tag "a" as "a\r" — a DIFFERENT tag in
-// Obsidian — and silently replaced the whole frontmatter block with LF while the
-// body stayed CRLF. All three write paths (update_frontmatter, manage_tags and
-// write_note append/prepend) funnel through preserveStringify, so they shared it.
-
 const crlfNote = [
   "---",
   "title: Test",
@@ -236,6 +229,45 @@ const crlfNote = [
 ].join("\r\n");
 
 describe("CRLF notes", () => {
+  test.each(["tags: [a]", "tags:\r\n  - a", 'tags: ["a"]'])(
+    "parses %s before updating without changing raw content",
+    (yaml) => {
+      const body = "\r\n# Head\r\nbody line";
+      const note = `---\r\n${yaml}\r\n---\r\n${body}`;
+      const parsed = handler.parse(note);
+
+      expect(parsed.frontmatter.tags).toEqual(["a"]);
+      expect(parsed.content).toBe(body);
+      expect(parsed.originalContent).toBe(note);
+      expect(parsed.matter).toBe(`\r\n${yaml}\r`);
+
+      const out = handler.updateFrontmatter(note, { status: "ok" });
+      expect(handler.parse(out).frontmatter).toEqual({ tags: ["a"], status: "ok" });
+      expect(handler.parse(out).content).toBe(body);
+      expect(out.replace(/\r\n/g, "")).not.toContain("\n");
+    }
+  );
+
+  test.each(["", "---\r\n---\r\n"])(
+    "adds frontmatter to CRLF notes with empty or missing frontmatter (%j)",
+    (prefix) => {
+      const body = "# Head\r\nbody line\r\n";
+      const out = handler.updateFrontmatter(prefix + body, { status: "ok" });
+
+      expect(handler.parse(out).frontmatter).toEqual({ status: "ok" });
+      expect(handler.parse(out).content).toBe(body);
+      expect(out.startsWith("---\r\n")).toBe(true);
+      expect(out.replace(/\r\n/g, "")).not.toContain("\n");
+    }
+  );
+
+  test("stringify uses CRLF without rewriting body characters", () => {
+    const body = "# Head\r\nbody\rwith carriage return\r\n";
+    const out = handler.stringify({ tags: ["a"] }, body);
+
+    expect(out).toBe(`---\r\ntags:\r\n  - a\r\n---\r\n${body}`);
+  });
+
   test("parse does not leak \r into frontmatter values", () => {
     const parsed = handler.parse(crlfNote);
 
