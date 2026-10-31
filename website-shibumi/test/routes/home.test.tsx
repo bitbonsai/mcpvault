@@ -76,6 +76,12 @@ describe("GET / (HTML)", () => {
     expect(body).toContain(`<span class="version-pill">v${packageVersion}</span>`);
     for (const content of [body, markdown]) {
       expect(content).toContain(`v${packageVersion} (October 2026)`);
+      expect(content).toContain("Safer note writes preserve in-vault symlinks and POSIX file modes.");
+      expect(content).toContain("Updates queue per note within one server instance, and files are replaced atomically");
+      expect(content).toContain("https://github.com/bitbonsai/mcpvault/pull/263");
+      expect(content).toContain("https://github.com/ErycM");
+      expect(content).toContain("@ErycM");
+      expect(content).toContain("v0.18.0 (October 2026)");
       expect(content).toContain("Requires Node.js 22.12.0 or later.");
       expect(content).toContain("Node 20 users should upgrade Node.js or stay on MCPVault 0.17.3");
       expect(content).toContain("https://github.com/bitbonsai/mcpvault/pull/261");

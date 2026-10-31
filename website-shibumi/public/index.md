@@ -16,6 +16,7 @@ MCPVault reads, searches, and edits local vault files. Obsidian can stay closed,
 
 ## Recent Updates
 
+- **v0.18.1 (October 2026):** Safer note writes preserve in-vault symlinks and POSIX file modes. Updates queue per note within one server instance, and files are replaced atomically. ([#263](https://github.com/bitbonsai/mcpvault/pull/263), thanks [@ErycM](https://github.com/ErycM))
 - **v0.18.0 (October 2026):** Requires Node.js 22.12.0 or later. Node 20 users should upgrade Node.js or stay on MCPVault 0.17.3. ([#261](https://github.com/bitbonsai/mcpvault/pull/261))
 - **v0.17.3 (October 2026):** Updated system-trash support to `trash` 10.1.1. Exact-filename safeguards remain enabled. ([#253](https://github.com/bitbonsai/mcpvault/pull/253))
 - **v0.17.2 (October 2026):** System trash now uses exact filenames. Brackets and other pattern characters no longer select neighboring notes. Dependencies refreshed. ([#258](https://github.com/bitbonsai/mcpvault/pull/258))
