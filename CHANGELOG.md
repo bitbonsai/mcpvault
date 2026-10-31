@@ -7,8 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-10-31
+
 ### Fixed
-- In-place note writes now use atomic replacement and serialize read-modify-write operations per resolved target within one service instance. In-vault symlinks and existing POSIX file modes are preserved; failed writes leave the original note intact. Builds on [#174](https://github.com/bitbonsai/mcpvault/pull/174), thanks [@ErycM](https://github.com/ErycM).
+- In-place note writes now use atomic replacement and serialize read-modify-write operations per resolved target within one service instance. In-vault symlinks and existing POSIX file modes are preserved; failed writes leave the original note intact. Implemented in [#263](https://github.com/bitbonsai/mcpvault/pull/263), building on [#174](https://github.com/bitbonsai/mcpvault/pull/174), thanks [@ErycM](https://github.com/ErycM).
 - Append and prepend writes now stop on read errors instead of treating an unreadable note as a missing file.
 
 ## [0.18.0] - 2026-10-31
