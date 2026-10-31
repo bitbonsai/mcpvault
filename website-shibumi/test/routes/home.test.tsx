@@ -76,6 +76,10 @@ describe("GET / (HTML)", () => {
     expect(body).toContain(`<span class="version-pill">v${packageVersion}</span>`);
     for (const content of [body, markdown]) {
       expect(content).toContain(`v${packageVersion} (October 2026)`);
+      expect(content).toContain("Requires Node.js 22.12.0 or later.");
+      expect(content).toContain("Node 20 users should upgrade Node.js or stay on MCPVault 0.17.3");
+      expect(content).toContain("https://github.com/bitbonsai/mcpvault/pull/261");
+      expect(content).toContain("v0.17.3 (October 2026)");
       expect(content).toContain("Updated system-trash support to");
       expect(content).toContain("Exact-filename safeguards remain enabled");
       expect(content).toContain("https://github.com/bitbonsai/mcpvault/pull/253");
