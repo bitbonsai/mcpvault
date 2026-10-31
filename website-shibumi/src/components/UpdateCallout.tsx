@@ -38,6 +38,19 @@ interface Update {
 
 const OLDER_UPDATES: Update[] = [
   {
+    version: "v0.18.1",
+    date: "October 2026",
+    body: (
+      <>
+        Safer note writes preserve in-vault symlinks and POSIX file modes.
+        Updates queue per note within one server instance, and files are replaced atomically (
+        <a href="https://github.com/bitbonsai/mcpvault/pull/263" target="_blank" rel="noopener noreferrer">#263</a>
+        , thanks <a href="https://github.com/ErycM" target="_blank" rel="noopener noreferrer">@ErycM</a>
+        ).
+      </>
+    ),
+  },
+  {
     version: "v0.18.0",
     date: "October 2026",
     body: (
@@ -474,7 +487,7 @@ export function UpdateCallout() {
         <div class="callout-body">
           <div class="updates-heading">
             <h3>
-              Recent updates <span class="version-pill">v0.18.1</span>
+              Recent updates <span class="version-pill">v0.18.2</span>
             </h3>
             <button
               type="button"
@@ -500,10 +513,10 @@ export function UpdateCallout() {
           </div>
 
           <p class="latest-update">
-            <span class="entry-version">v0.18.1 (October 2026):</span> Safer note writes preserve in-vault symlinks and POSIX file modes.
-            Updates queue per note within one server instance, and files are replaced atomically (
-            <a href="https://github.com/bitbonsai/mcpvault/pull/263" target="_blank" rel="noopener noreferrer">#263</a>
-            , thanks <a href="https://github.com/ErycM" target="_blank" rel="noopener noreferrer">@ErycM</a>
+            <span class="entry-version">v0.18.2 (October 2026):</span> CRLF notes keep their tags and line endings.
+            JavaScript frontmatter is treated as note content and never executed (
+            <a href="https://github.com/bitbonsai/mcpvault/pull/163" target="_blank" rel="noopener noreferrer">#163</a>
+            , thanks <a href="https://github.com/badigit" target="_blank" rel="noopener noreferrer">@badigit</a>
             ).
           </p>
 

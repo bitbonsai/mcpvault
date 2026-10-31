@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.2] - 2026-10-31
+
+### Security
+- Disabled gray-matter's executable JavaScript frontmatter engine, including `js` aliases and case variants. These blocks remain unchanged as note content; safe JSON frontmatter still parses.
+
+### Fixed
+- CRLF notes keep their tags and line endings during frontmatter updates, tag changes, and append/prepend writes. YAML is normalized before its first parse, including flow-style tags, and notes with empty or missing frontmatter use CRLF-aware serialization ([#163](https://github.com/bitbonsai/mcpvault/pull/163), thanks [@badigit](https://github.com/badigit)).
+
 ## [0.18.1] - 2026-10-31
 
 ### Fixed
