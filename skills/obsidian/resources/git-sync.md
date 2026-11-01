@@ -28,7 +28,7 @@ Interpretation:
 - Missing name/email: ask user to set identity.
 - No remote: sync can commit locally, but cannot push until remote is configured.
 
-## AskUserQuestion Patterns
+## Confirmation patterns
 
 Use a single targeted question when a decision changes behavior.
 
