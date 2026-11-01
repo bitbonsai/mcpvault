@@ -31,7 +31,8 @@ export function releaseNotes(changelog, version) {
   return notes;
 }
 
-export async function release(checkOnly = false) {
+export async function release(checkOnly = false, yes = false) {
+  if (checkOnly && yes) throw new Error('--check and --yes cannot be combined.');
   const commit = cleanMainCommit();
   const { name, version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   if (name !== '@bitbonsai/mcpvault' || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) {
@@ -71,19 +72,21 @@ export async function release(checkOnly = false) {
 
   console.log(`Repository: ${repository}\nRelease: ${tag}\nCommit: ${commit}\n\n${notes}\n`);
   if (checkOnly) return;
-  if (!stdin.isTTY || !stdout.isTTY) {
-    throw new Error('Run npm run release in your own terminal to confirm npm publication.');
-  }
-  const prompt = createInterface({ input: stdin, output: stdout });
-  let answer;
-  try {
-    answer = await prompt.question(`Creating this GitHub Release publishes to npm. Type ${tag} to continue: `);
-  } finally {
-    prompt.close();
-  }
-  if (answer.trim() !== tag) {
-    console.log('Release cancelled.');
-    return;
+  if (!yes) {
+    if (!stdin.isTTY || !stdout.isTTY) {
+      throw new Error('Use your own terminal to confirm publication, or --yes for an approved automated release.');
+    }
+    const prompt = createInterface({ input: stdin, output: stdout });
+    let answer;
+    try {
+      answer = await prompt.question(`Creating this GitHub Release publishes to npm. Type ${tag} to continue: `);
+    } finally {
+      prompt.close();
+    }
+    if (answer.trim() !== tag) {
+      console.log('Release cancelled.');
+      return;
+    }
   }
   if (cleanMainCommit() !== commit) throw new Error('Checkout changed during confirmation. Release stopped.');
   // Reserve the tag atomically so a concurrent tag cannot override --target.
@@ -100,10 +103,10 @@ export async function release(checkOnly = false) {
 if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
   Promise.resolve().then(() => {
-    if (args.length > 1 || (args.length === 1 && args[0] !== '--check')) {
-      throw new Error('Usage: npm run release [-- --check]');
+    if (args.length > 1 || (args.length === 1 && !['--check', '--yes'].includes(args[0]))) {
+      throw new Error('Usage: npm run release [-- --check | -- --yes]');
     }
-    return release(args[0] === '--check');
+    return release(args[0] === '--check', args[0] === '--yes');
   }).catch(error => {
     console.error(error.message);
     process.exitCode = 1;

@@ -98,6 +98,46 @@ test('check mode never prompts or creates a release', async () => {
   expect(creations()).toHaveLength(0);
 });
 
+test('--check and --yes cannot be combined', async () => {
+  await expect(release(true, true)).rejects.toThrow('--check and --yes cannot be combined');
+  expect(mocks.exec).not.toHaveBeenCalled();
+  expect(mocks.fetch).not.toHaveBeenCalled();
+});
+
+test('--yes permits an approved release without a terminal or prompt', async () => {
+  mocks.stdin.isTTY = false;
+  mocks.stdout.isTTY = false;
+  await release(false, true);
+  expect(mocks.question).not.toHaveBeenCalled();
+  expect(mocks.close).not.toHaveBeenCalled();
+  expect(creations()).toHaveLength(2);
+  expect(creations()[0]?.[1]).toContain(`sha=${commit}`);
+  expect(creations()[1]?.[1]).toContain('--verify-tag');
+  expect(creations()[1]?.[2]).toEqual(expect.objectContaining({ input: notes }));
+});
+
+test.each(['dirty checkout', 'failed CI', 'existing release', 'existing tag', 'published version'])(
+  '--yes still blocks %s', async scenario => {
+    if (scenario === 'dirty checkout') state.changes = ' M package.json';
+    if (scenario === 'failed CI') state.runs[0]!.conclusion = 'failure';
+    if (scenario === 'existing release') state.releases = 'v0.18.4';
+    if (scenario === 'existing tag') state.tags = [{ ref: 'refs/tags/v0.18.4' }];
+    if (scenario === 'published version') mocks.fetch.mockResolvedValue({ status: 200 });
+    await expect(release(false, true)).rejects.toThrow();
+    expect(mocks.question).not.toHaveBeenCalled();
+    expect(creations()).toHaveLength(0);
+  },
+);
+
+test('--yes rechecks the checkout immediately before creating the tag', async () => {
+  mocks.fetch.mockImplementation(async () => {
+    state.changes = ' M package.json';
+    return { status: 404 };
+  });
+  await expect(release(false, true)).rejects.toThrow('local changes');
+  expect(creations()).toHaveLength(0);
+});
+
 test('confirmed release pins the checked commit and sends changelog notes on stdin', async () => {
   await release();
   expect(mocks.question).toHaveBeenCalledWith(expect.stringContaining('publishes to npm'));
