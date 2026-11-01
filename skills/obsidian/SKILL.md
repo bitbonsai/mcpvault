@@ -87,7 +87,7 @@ When the user asks to "sync", "backup", or "store my vault with git", use CLI gi
    - at least one remote exists for push/pull sync
 
 2. If preflight is incomplete, ask exactly one targeted question with a recommended default.
-   - Use askuserquestion for decisions that materially change behavior.
+   - Use `AskUserQuestion` when available; otherwise ask directly in chat.
    - Good examples:
      - "No git repo found. Initialize one in this vault now? (Recommended: Yes)"
      - "No remote configured. Set up GitHub remote now via gh if available, or provide remote URL? (Recommended: Set up via gh)"
