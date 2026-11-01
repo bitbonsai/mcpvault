@@ -31,7 +31,7 @@ This check prints the release preview without publishing anything. It does not b
 
 ## 3. Publish a GitHub Release
 
-Run this in your own terminal:
+For an interactive release, run:
 
 ```bash
 npm run release
@@ -39,7 +39,15 @@ npm run release
 
 Review the version, commit, and changelog notes, then type the displayed tag to confirm. The command first creates the tag at the checked commit, then publishes its GitHub Release with notes directly from the changelog. Publishing that release triggers npm publication through GitHub Actions. Keep npm 2FA enabled; the workflow uses the package's trusted publisher configuration.
 
-The assistant may run `--check`; final confirmation belongs to the user. There is no non-interactive publish flag. An existing release is never recreated or automatically retried.
+For an already approved release without a prompt, including assistant execution:
+
+```bash
+npm run release -- --yes
+```
+
+`--yes` keeps every readiness check and the final checkout check. The user authorizes assistants to create GitHub Releases and monitor npm publication through trusted CI as part of approved release work. Interactive confirmation remains the default.
+
+`--check` is read-only and cannot be combined with `--yes`. An existing release is never recreated or automatically retried.
 
 ## 4. Verify publication
 
