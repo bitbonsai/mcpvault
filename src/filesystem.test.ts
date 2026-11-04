@@ -925,6 +925,8 @@ test("delete note with correct confirmation", async () => {
   const content = "# Test Note\n\nThis is a test note to be deleted.";
 
   await writeFile(join(testVaultPath, testPath), content);
+  // A second note keeps the vault from becoming empty (the last note is never deleted).
+  await writeFile(join(testVaultPath, "keep.md"), "# Kept");
 
   const result = await fileSystem.deleteNote({
     path: testPath,
@@ -1002,6 +1004,8 @@ test("delete note with local trash mode", async () => {
   const content = "# Trash Test\n\nThis note should be moved to vault trash.";
 
   await writeFile(join(testVaultPath, testPath), content);
+  // A second note keeps the vault from becoming empty (the last note is never deleted).
+  await writeFile(join(testVaultPath, "keep.md"), "# Kept");
 
   const result = await fileSystem.deleteNote({
     path: testPath,
@@ -1025,6 +1029,8 @@ test("delete note with system trash mode", async () => {
   const content = "# System Trash Test\n\nThis note should be moved to system trash.";
 
   await writeFile(join(testVaultPath, testPath), content);
+  // A second note keeps the vault from becoming empty (the last note is never deleted).
+  await writeFile(join(testVaultPath, "keep.md"), "# Kept");
 
   const result = await fileSystem.deleteNote({
     path: testPath,
@@ -1051,6 +1057,8 @@ tags: [test, delete]
 This note has frontmatter and should be deleted successfully.`;
 
   await writeFile(join(testVaultPath, testPath), content);
+  // A second note keeps the vault from becoming empty (the last note is never deleted).
+  await writeFile(join(testVaultPath, "keep.md"), "# Kept");
 
   const result = await fileSystem.deleteNote({
     path: testPath,
@@ -1647,6 +1655,8 @@ test("delete note with special chars in path", async () => {
 
   await mkdir(join(testVaultPath, "folder (archive)"), { recursive: true });
   await writeFile(join(testVaultPath, testPath), content);
+  // A second note keeps the vault from becoming empty (the last note is never deleted).
+  await writeFile(join(testVaultPath, "keep.md"), "# Kept");
 
   const result = await fileSystem.deleteNote({
     path: testPath,
@@ -2392,5 +2402,219 @@ describe("findPathForWikiLink (#101)", () => {
     await writeFile(join(testVaultPath, "a/b/Note.md"), "# nested");
     const matches = await fileSystem.findPathForWikiLink("a/b/Note");
     expect(matches).toEqual(["a/b/Note.md"]);
+  });
+});
+
+// ============================================================================
+// VAULT GUARDS: never-empty vault, case-only name collisions
+// ============================================================================
+
+describe("delete_note never empties the vault", () => {
+  const refusal = "would leave the vault with no notes";
+
+  test("refuses to delete the only note in the vault and keeps the file", async () => {
+    await writeFile(join(testVaultPath, "only.md"), "# Only");
+
+    for (const trashMode of ["none", "local", "system"] as const) {
+      const result = await fileSystem.deleteNote({ path: "only.md", confirmPath: "only.md", trashMode });
+      expect(result.success).toBe(false);
+      expect(result.message).toBe(
+        "Refused: deleting only.md would leave the vault with no notes. Obsidian Sync on mobile pauses itself on an empty vault; keep at least one note."
+      );
+    }
+
+    expect(await readFile(join(testVaultPath, "only.md"), "utf-8")).toBe("# Only");
+    expect(await fileSystem.exists(".trash/only.md")).toBe(false);
+  });
+
+  test("deletes a note when another note exists, including in a subfolder", async () => {
+    await writeFile(join(testVaultPath, "first.md"), "# First");
+    await mkdir(join(testVaultPath, "deep/er"), { recursive: true });
+    await writeFile(join(testVaultPath, "deep/er/second.txt"), "second");
+
+    const first = await fileSystem.deleteNote({ path: "first.md", confirmPath: "first.md" });
+    expect(first.success).toBe(true);
+    expect(await fileSystem.exists("first.md")).toBe(false);
+
+    const second = await fileSystem.deleteNote({ path: "deep/er/second.txt", confirmPath: "deep/er/second.txt" });
+    expect(second.success).toBe(false);
+    expect(second.message).toContain(refusal);
+    expect(await readFile(join(testVaultPath, "deep/er/second.txt"), "utf-8")).toBe("second");
+  });
+
+  test("non-note files and filtered paths do not count as notes", async () => {
+    await writeFile(join(testVaultPath, "only.md"), "# Only");
+    await writeFile(join(testVaultPath, "image.png"), "png-bytes");
+    await mkdir(join(testVaultPath, ".trash"), { recursive: true });
+    await writeFile(join(testVaultPath, ".trash/old.md"), "# Trashed");
+    await mkdir(join(testVaultPath, ".obsidian"), { recursive: true });
+    await writeFile(join(testVaultPath, ".obsidian/workspace.md"), "# Config");
+    await writeFile(join(testVaultPath, ".hidden.md"), "# Hidden");
+
+    const result = await fileSystem.deleteNote({ path: "only.md", confirmPath: "only.md" });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain(refusal);
+    expect(await readFile(join(testVaultPath, "only.md"), "utf-8")).toBe("# Only");
+  });
+
+  test("a non-note file is handled as before (not a note, so not guarded)", async () => {
+    await writeFile(join(testVaultPath, "only.md"), "# Only");
+    await writeFile(join(testVaultPath, "image.png"), "png-bytes");
+
+    const result = await fileSystem.deleteNote({ path: "image.png", confirmPath: "image.png" });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Access denied");
+    expect(result.message).not.toContain(refusal);
+    expect(await readFile(join(testVaultPath, "image.png"), "utf-8")).toBe("png-bytes");
+  });
+
+  test("a missing note in an empty vault still reports File not found", async () => {
+    const result = await fileSystem.deleteNote({ path: "gone.md", confirmPath: "gone.md" });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("File not found");
+  });
+});
+
+describe("case-only name collisions", () => {
+  const clashMessage = (existing: string, path: string) =>
+    `Name differs only in case from the existing "${existing}": ${path}. Case-only names break sync on case-insensitive devices; choose another name.`;
+
+  test("write_note refuses to create Nova.md next to nova.md", async () => {
+    await writeFile(join(testVaultPath, "nova.md"), "# nova");
+
+    await expect(fileSystem.writeNote({ path: "Nova.md", content: "# Nova" }))
+      .rejects.toThrow(clashMessage("nova.md", "Nova.md"));
+    await expect(fileSystem.writeNote({ path: "Nova.md", content: "more", mode: "append" }))
+      .rejects.toThrow(clashMessage("nova.md", "Nova.md"));
+
+    expect((await readdir(testVaultPath)).sort()).toEqual(["nova.md"]);
+    expect(await readFile(join(testVaultPath, "nova.md"), "utf-8")).toBe("# nova");
+  });
+
+  test("write_note still updates the exact existing path", async () => {
+    await writeFile(join(testVaultPath, "nova.md"), "# nova");
+
+    await fileSystem.writeNote({ path: "nova.md", content: "# updated" });
+    expect(await readFile(join(testVaultPath, "nova.md"), "utf-8")).toBe("# updated");
+
+    await fileSystem.writeNote({ path: "nova.md", content: "\nmore", mode: "append" });
+    expect(await readFile(join(testVaultPath, "nova.md"), "utf-8")).toBe("# updated\nmore");
+  });
+
+  test("write_note refuses a parent folder that differs only in case from an existing one", async () => {
+    await mkdir(join(testVaultPath, "docs"));
+
+    await expect(fileSystem.writeNote({ path: "Docs/new.md", content: "# New" }))
+      .rejects.toThrow(clashMessage("docs", "Docs/new.md"));
+
+    expect((await readdir(testVaultPath)).sort()).toEqual(["docs"]);
+    expect(await readdir(join(testVaultPath, "docs"))).toEqual([]);
+  });
+
+  test("write_note creates a new note when no sibling clashes", async () => {
+    await writeFile(join(testVaultPath, "nova.md"), "# nova");
+    await mkdir(join(testVaultPath, "docs"));
+
+    await fileSystem.writeNote({ path: "docs/Nova Two.md", content: "# Nova Two" });
+    expect(await readFile(join(testVaultPath, "docs/Nova Two.md"), "utf-8")).toBe("# Nova Two");
+  });
+
+  test("move_note refuses b.md -> A.md when a.md exists and leaves the source untouched", async () => {
+    await writeFile(join(testVaultPath, "a.md"), "# a");
+    await writeFile(join(testVaultPath, "b.md"), "# b");
+
+    const result = await fileSystem.moveNote({ oldPath: "b.md", newPath: "A.md" });
+    expect(result.success).toBe(false);
+    expect(result.message).toBe(clashMessage("a.md", "A.md"));
+
+    expect((await readdir(testVaultPath)).sort()).toEqual(["a.md", "b.md"]);
+    expect(await readFile(join(testVaultPath, "b.md"), "utf-8")).toBe("# b");
+    expect(await readFile(join(testVaultPath, "a.md"), "utf-8")).toBe("# a");
+  });
+
+  test("move_file refuses b.md -> A.md when a.md exists and leaves the source untouched", async () => {
+    await writeFile(join(testVaultPath, "a.md"), "# a");
+    await writeFile(join(testVaultPath, "b.md"), "# b");
+
+    const result = await fileSystem.moveFile({
+      oldPath: "b.md",
+      newPath: "A.md",
+      confirmOldPath: "b.md",
+      confirmNewPath: "A.md"
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toBe(clashMessage("a.md", "A.md"));
+
+    expect((await readdir(testVaultPath)).sort()).toEqual(["a.md", "b.md"]);
+    expect(await readFile(join(testVaultPath, "b.md"), "utf-8")).toBe("# b");
+  });
+
+  test("moves refuse a destination folder that differs only in case from an existing sibling", async () => {
+    await mkdir(join(testVaultPath, "Docs"));
+    await writeFile(join(testVaultPath, "x.md"), "# x");
+    await writeFile(join(testVaultPath, "y.png"), "png-bytes");
+
+    const note = await fileSystem.moveNote({ oldPath: "x.md", newPath: "docs/x.md" });
+    expect(note.success).toBe(false);
+    expect(note.message).toBe(clashMessage("Docs", "docs/x.md"));
+
+    const file = await fileSystem.moveFile({
+      oldPath: "y.png",
+      newPath: "docs/y.png",
+      confirmOldPath: "y.png",
+      confirmNewPath: "docs/y.png"
+    });
+    expect(file.success).toBe(false);
+    expect(file.message).toBe(clashMessage("Docs", "docs/y.png"));
+
+    expect((await readdir(testVaultPath)).sort()).toEqual(["Docs", "x.md", "y.png"]);
+    expect(await readdir(join(testVaultPath, "Docs"))).toEqual([]);
+  });
+
+  test("moves refuse a file name that differs only in case from an existing folder", async () => {
+    await mkdir(join(testVaultPath, "notes.md"));
+    await writeFile(join(testVaultPath, "x.md"), "# x");
+
+    const result = await fileSystem.moveNote({ oldPath: "x.md", newPath: "Notes.md" });
+    expect(result.success).toBe(false);
+    expect(result.message).toBe(clashMessage("notes.md", "Notes.md"));
+    expect(await readFile(join(testVaultPath, "x.md"), "utf-8")).toBe("# x");
+  });
+
+  test("normal moves still work next to differently named siblings", async () => {
+    await writeFile(join(testVaultPath, "a.md"), "# a");
+    await writeFile(join(testVaultPath, "b.md"), "# b");
+    await writeFile(join(testVaultPath, "c.png"), "png-bytes");
+
+    const note = await fileSystem.moveNote({ oldPath: "b.md", newPath: "Archive/B2.md" });
+    expect(note.success).toBe(true);
+    expect(await readFile(join(testVaultPath, "Archive/B2.md"), "utf-8")).toBe("# b");
+
+    const file = await fileSystem.moveFile({
+      oldPath: "c.png",
+      newPath: "Archive/C.png",
+      confirmOldPath: "c.png",
+      confirmNewPath: "Archive/C.png"
+    });
+    expect(file.success).toBe(true);
+    expect(await readFile(join(testVaultPath, "Archive/C.png"), "utf-8")).toBe("png-bytes");
+  });
+
+  test("a note may be renamed to change only its own case", async () => {
+    await writeFile(join(testVaultPath, "readme.md"), "# readme");
+    await writeFile(join(testVaultPath, "other.md"), "# other");
+
+    // On a case-insensitive filesystem the OS resolves both names to one file;
+    // the exclusive write then reports the existing target, which is unchanged behavior.
+    const caseInsensitive = await fileSystem.exists("README.md");
+
+    const result = await fileSystem.moveNote({ oldPath: "readme.md", newPath: "README.md" });
+    if (caseInsensitive) {
+      expect(result.message).not.toContain("differs only in case");
+      return;
+    }
+    expect(result.success).toBe(true);
+    expect((await readdir(testVaultPath)).sort()).toEqual(["README.md", "other.md"]);
+    expect(await readFile(join(testVaultPath, "README.md"), "utf-8")).toBe("# readme");
   });
 });

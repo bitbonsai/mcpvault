@@ -98,7 +98,7 @@ export function createServer(vaultPath, options = {}) {
             },
             {
                 name: "delete_note",
-                description: "Delete a note from the Obsidian vault (requires confirmation). Supports permanent delete, vault trash, or system trash.",
+                description: "Delete a note from the Obsidian vault (requires confirmation). Supports permanent delete, vault trash, or system trash. The last note in the vault is never deleted.",
                 inputSchema: {
                     type: "object",
                     properties: {

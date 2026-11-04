@@ -494,6 +494,8 @@ Write a note to the vault with optional frontmatter and write mode.
 - `append`: Add content to the end of existing file
 - `prepend`: Add content to the beginning of existing file
 
+A new note (or a new parent folder) may not take a name that differs only in case from an existing sibling (for example `Nova.md` next to `nova.md`): the write is refused, because case-only names lose one of the two files on case-insensitive devices. Writing to the exact existing path updates it as usual.
+
 **Request (Overwrite):**
 
 ```json
@@ -631,6 +633,8 @@ Delete a note from the vault (requires confirmation for safety).
 - `none` (default): permanent delete
 - `local`: move to `.trash` inside the vault, preserving folder structure
 - `system`: move to the OS trash/recycle bin
+
+**Never-empty vault:** the last note in the vault is never deleted, in any trash mode. Obsidian Sync on mobile pauses itself on an empty vault ("Empty vault detected, sync paused to prevent accidental data loss"), so the tool answers `Refused: deleting <path> would leave the vault with no notes...` and leaves the file in place. Notes are files with a note extension (`.md`, `.markdown`, `.txt`, `.base`, `.canvas`) outside `.obsidian`, `.trash` and other filtered paths.
 
 **Response (Confirmation Failed):**
 
@@ -796,6 +800,8 @@ Move or rename a note in the vault (`.md`, `.markdown`, `.txt`, `.base`, `.canva
 }
 ```
 
+The new name may not differ only in case from an existing sibling in the destination folder (a file or a folder, for example moving `b.md` to `A.md` next to `a.md`, or into `docs/` when `Docs/` exists): the move is refused and the source stays untouched. Renaming a note to change only its own case is allowed.
+
 ### `move_file`
 
 Move or rename any file in the vault with binary-safe file operations (file-only; not recursive directory moves). For safety, this tool requires confirmation of both source and destination paths.
@@ -827,6 +833,8 @@ Move or rename any file in the vault with binary-safe file operations (file-only
 ```
 
 **Confirmation:** `confirmOldPath` must match `oldPath`, and `confirmNewPath` must match `newPath`.
+
+Like `move_note`, the new name may not differ only in case from an existing sibling in the destination folder.
 
 ### `read_multiple_notes`
 

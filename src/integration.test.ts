@@ -50,7 +50,8 @@ describe("Integration: Service Layer Workflows", () => {
     expect(note.frontmatter?.tags).toEqual(["test"]);
     expect(note.frontmatter?.status).toBe("draft");
 
-    // 3. Delete the note
+    // 3. Delete the note (a second note keeps the vault from becoming empty)
+    await fileSystem.writeNote({ path: "keep.md", content: "# Kept" });
     const deleteResult = await fileSystem.deleteNote({
       path: "test-note.md",
       confirmPath: "test-note.md"
