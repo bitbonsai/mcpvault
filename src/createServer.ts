@@ -25,7 +25,18 @@ const MUTATING_TOOLS = new Set([
   "move_file",
   "update_frontmatter",
   "manage_tags",
+  "create_folder",
+  "delete_folder",
 ]);
+
+// Tools whose call should reach a person every time. Clients that understand
+// this _meta key prompt before each call of these tools; others ignore it.
+const REQUIRES_USER_INTERACTION = new Set(MUTATING_TOOLS);
+
+function withUserInteraction(tool: Tool): Tool {
+  if (!REQUIRES_USER_INTERACTION.has(tool.name)) return tool;
+  return { ...tool, _meta: { ...(tool._meta ?? {}), "anthropic/requiresUserInteraction": true } };
+}
 
 function normalizeSubtree(path: string): string {
   let relativePath = path.trim().replace(/\\/g, "/");
@@ -82,7 +93,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               prettyPrint: { type: "boolean", description: "Format JSON response with indentation (default: false)", default: false }
             },
             required: ["path"]
-          }
+          },
+          annotations: { title: "Read note", readOnlyHint: true, idempotentHint: true, openWorldHint: false }
         },
         {
           name: "write_note",
@@ -96,7 +108,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               mode: { type: "string", enum: ["overwrite", "append", "prepend"], description: "Write mode: 'overwrite' (default), 'append', or 'prepend'", default: "overwrite" }
             },
             required: ["path", "content"]
-          }
+          },
+          annotations: { title: "Write note", readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false }
         },
         {
           name: "patch_note",
@@ -110,7 +123,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               replaceAll: { type: "boolean", description: "If true, replace all occurrences. If false (default), the operation will fail if multiple matches are found to prevent unintended replacements.", default: false }
             },
             required: ["path", "oldString", "newString"]
-          }
+          },
+          annotations: { title: "Patch note", readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false }
         },
         {
           name: "list_directory",
@@ -121,7 +135,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               path: { type: "string", description: "Path relative to vault root (default: '/')", default: "/" },
               prettyPrint: { type: "boolean", description: "Format JSON response with indentation (default: false)", default: false }
             }
-          }
+          },
+          annotations: { title: "List directory", readOnlyHint: true, idempotentHint: true, openWorldHint: false }
         },
         {
           name: "delete_note",
@@ -134,7 +149,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               trashMode: { type: "string", enum: ["none", "local", "system"], description: "Deletion mode: 'none' = permanent delete (default), 'local' = move to .trash inside vault, 'system' = move to OS trash", default: "none" }
             },
             required: ["path", "confirmPath"]
-          }
+          },
+          annotations: { title: "Delete note", readOnlyHint: false, destructiveHint: true, openWorldHint: false }
         },
         {
           name: "search_notes",
@@ -152,7 +168,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               prettyPrint: { type: "boolean", description: "Format JSON response with indentation (default: false)", default: false }
             },
             required: ["query"]
-          }
+          },
+          annotations: { title: "Search notes", readOnlyHint: true, idempotentHint: true, openWorldHint: false }
         },
         {
           name: "move_note",
@@ -165,7 +182,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               overwrite: { type: "boolean", description: "Allow overwriting existing file (default: false)", default: false }
             },
             required: ["oldPath", "newPath"]
-          }
+          },
+          annotations: { title: "Move note", readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false }
         },
         {
           name: "move_file",
@@ -180,7 +198,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               overwrite: { type: "boolean", description: "Allow overwriting existing file (default: false)", default: false }
             },
             required: ["oldPath", "newPath", "confirmOldPath", "confirmNewPath"]
-          }
+          },
+          annotations: { title: "Move file", readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false }
         },
         {
           name: "read_multiple_notes",
@@ -194,7 +213,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               prettyPrint: { type: "boolean", description: "Format JSON response with indentation (default: false)", default: false }
             },
             required: ["paths"]
-          }
+          },
+          annotations: { title: "Read multiple notes", readOnlyHint: true, idempotentHint: true, openWorldHint: false }
         },
         {
           name: "update_frontmatter",
@@ -207,7 +227,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               merge: { type: "boolean", description: "Merge with existing frontmatter (default: true)", default: true }
             },
             required: ["path", "frontmatter"]
-          }
+          },
+          annotations: { title: "Update frontmatter", readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
         },
         {
           name: "get_notes_info",
@@ -219,7 +240,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               prettyPrint: { type: "boolean", description: "Format JSON response with indentation (default: false)", default: false }
             },
             required: ["paths"]
-          }
+          },
+          annotations: { title: "Get notes info", readOnlyHint: true, idempotentHint: true, openWorldHint: false }
         },
         {
           name: "get_frontmatter",
@@ -231,7 +253,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               prettyPrint: { type: "boolean", description: "Format JSON response with indentation (default: false)", default: false }
             },
             required: ["path"]
-          }
+          },
+          annotations: { title: "Get frontmatter", readOnlyHint: true, idempotentHint: true, openWorldHint: false }
         },
         {
           name: "manage_tags",
@@ -244,7 +267,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               tags: { type: "array", items: { type: "string" }, description: "Array of tags (required for 'add' and 'remove' operations)" }
             },
             required: ["path", "operation"]
-          }
+          },
+          annotations: { title: "Manage tags", readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
         },
         {
           name: "get_vault_stats",
@@ -255,7 +279,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               recentCount: { type: "number", description: "Number of recently modified files to return (default: 5, max: 20)", default: 5 },
               prettyPrint: { type: "boolean", description: "Format JSON response with indentation (default: false)", default: false }
             }
-          }
+          },
+          annotations: { title: "Get vault stats", readOnlyHint: true, idempotentHint: true, openWorldHint: false }
         },
         {
           name: "list_all_tags",
@@ -265,7 +290,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
             properties: {
               prettyPrint: { type: "boolean", description: "Format JSON response with indentation (default: false)", default: false }
             }
-          }
+          },
+          annotations: { title: "List all tags", readOnlyHint: true, idempotentHint: true, openWorldHint: false }
         },
         {
           name: "wiki_link",
@@ -284,7 +310,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               }
             },
             required: ["document"]
-          }
+          },
+          annotations: { title: "Resolve wiki link", readOnlyHint: true, idempotentHint: true, openWorldHint: false }
         },
         {
           name: "get_note_outline",
@@ -296,7 +323,8 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               prettyPrint: { type: "boolean", description: "Format JSON response with indentation (default: false)", default: false }
             },
             required: ["path"]
-          }
+          },
+          annotations: { title: "Get note outline", readOnlyHint: true, idempotentHint: true, openWorldHint: false }
         },
         {
           name: "read_note_lines",
@@ -310,14 +338,43 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
               prettyPrint: { type: "boolean", description: "Format JSON response with indentation (default: false)", default: false }
             },
             required: ["path", "startLine", "endLine"]
-          }
+          },
+          annotations: { title: "Read note lines", readOnlyHint: true, idempotentHint: true, openWorldHint: false }
+        },
+        {
+          name: "create_folder",
+          description: "Create a folder in the vault, with its parents. Refuses dot folders, the vault root, a path that is an existing file, and a name that differs only in case from an existing sibling (case-only names break sync on case-insensitive devices).",
+          inputSchema: {
+            type: "object",
+            properties: {
+              path: { type: "string", description: "Folder path relative to vault root" }
+            },
+            required: ["path"]
+          },
+          annotations: { title: "Create folder", readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+        },
+        {
+          name: "delete_folder",
+          description: "Delete a folder from the vault (requires confirmation). By default only an EMPTY folder is deleted. recursive=true is allowed only with trashMode 'local' and moves the whole folder to .trash/<path>; recursive with permanent deletion is refused. Dot folders and the vault root are refused.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              path: { type: "string", description: "Folder path relative to vault root" },
+              confirmPath: { type: "string", description: "Confirmation: must exactly match the path parameter to proceed with deletion" },
+              recursive: { type: "boolean", description: "Delete a non-empty folder with everything inside; allowed only with trashMode 'local' (default: false)", default: false },
+              trashMode: { type: "string", enum: ["none", "local"], description: "'none' = remove an empty folder permanently (default), 'local' = move the folder to .trash inside the vault", default: "none" }
+            },
+            required: ["path", "confirmPath"]
+          },
+          annotations: { title: "Delete folder", readOnlyHint: false, destructiveHint: true, openWorldHint: false }
         }
       ];
 
     return {
-      tools: readOnly
+      tools: (readOnly
         ? tools.filter((tool) => !MUTATING_TOOLS.has(tool.name))
-        : tools,
+        : tools
+      ).map(withUserInteraction),
     };
   });
 
@@ -536,6 +593,27 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
           });
           return {
             content: [{ type: "text", text }]
+          };
+        }
+
+        case "create_folder": {
+          const result = await fileSystem.createFolder({ path: trimmedArgs.path });
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            isError: !result.success
+          };
+        }
+
+        case "delete_folder": {
+          const result = await fileSystem.deleteFolder({
+            path: trimmedArgs.path,
+            confirmPath: trimmedArgs.confirmPath,
+            recursive: trimmedArgs.recursive,
+            trashMode: trimmedArgs.trashMode
+          });
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            isError: !result.success
           };
         }
 

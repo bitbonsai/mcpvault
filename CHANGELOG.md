@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `create_folder` creates a folder (with its parents) inside the vault. It refuses the vault root, dot folders and restricted names, a path that is an existing file, and a name that differs only in case from an existing sibling.
+- `delete_folder` deletes an empty folder, or moves a non-empty folder to `.trash` inside the vault when called with `recursive: true` and `trashMode: "local"`; recursive permanent deletion and `trashMode: "system"` are refused. Requires a matching `confirmPath`. Both folder tools are hidden and rejected in `--read-only` mode.
+- MCP tool annotations (`title`, `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) on every tool, and `_meta["anthropic/requiresUserInteraction"]: true` on every mutating tool in `tools/list`, so clients that honor the flag prompt before each vault mutation.
+
 ## [0.18.3] - 2026-11-01
 
 ### Fixed

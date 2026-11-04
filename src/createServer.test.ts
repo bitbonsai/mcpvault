@@ -25,7 +25,7 @@ test("createServer returns a Server instance", () => {
   expect(typeof server.connect).toBe("function");
 });
 
-test("server registers 18 tools", async () => {
+test("server registers 20 tools", async () => {
   const server = createServer(testVaultPath, { version: "1.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
@@ -37,10 +37,12 @@ test("server registers 18 tools", async () => {
   ]);
 
   const result = await client.listTools();
-  expect(result.tools).toHaveLength(18);
+  expect(result.tools).toHaveLength(20);
 
   const toolNames = result.tools.map((t) => t.name).sort();
   expect(toolNames).toEqual([
+    "create_folder",
+    "delete_folder",
     "delete_note",
     "get_frontmatter",
     "get_note_outline",
@@ -63,6 +65,161 @@ test("server registers 18 tools", async () => {
 
   await client.close();
   await server.close();
+});
+
+const READ_TOOLS = [
+  "get_frontmatter",
+  "get_note_outline",
+  "get_notes_info",
+  "get_vault_stats",
+  "list_all_tags",
+  "list_directory",
+  "read_multiple_notes",
+  "read_note",
+  "read_note_lines",
+  "search_notes",
+  "wiki_link",
+];
+
+const MUTATING_TOOLS = [
+  "create_folder",
+  "delete_folder",
+  "delete_note",
+  "manage_tags",
+  "move_file",
+  "move_note",
+  "patch_note",
+  "update_frontmatter",
+  "write_note",
+];
+
+test("every tool carries annotations and mutating tools require user interaction", async () => {
+  const server = createServer(testVaultPath, { version: "1.0.0" });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "test-client", version: "1.0.0" });
+  await Promise.all([
+    client.connect(clientTransport),
+    server.connect(serverTransport),
+  ]);
+
+  try {
+    const { tools } = await client.listTools();
+    expect(tools).toHaveLength(20);
+    expect(tools.map((tool) => tool.name).sort()).toEqual([...READ_TOOLS, ...MUTATING_TOOLS].sort());
+
+    for (const tool of tools) {
+      expect(tool.annotations, `${tool.name} annotations`).toBeDefined();
+      expect(typeof tool.annotations?.title, `${tool.name} title`).toBe("string");
+      expect(tool.annotations?.title, `${tool.name} title`).not.toBe("");
+      expect(typeof tool.annotations?.readOnlyHint, `${tool.name} readOnlyHint`).toBe("boolean");
+      expect(tool.annotations?.openWorldHint, `${tool.name} openWorldHint`).toBe(false);
+    }
+
+    for (const name of READ_TOOLS) {
+      const tool = tools.find((candidate) => candidate.name === name)!;
+      expect(tool.annotations?.readOnlyHint, `${name} readOnlyHint`).toBe(true);
+      expect(tool.annotations?.destructiveHint, `${name} destructiveHint`).toBeUndefined();
+      expect(tool._meta?.["anthropic/requiresUserInteraction"], `${name} _meta`).toBeUndefined();
+    }
+
+    for (const name of MUTATING_TOOLS) {
+      const tool = tools.find((candidate) => candidate.name === name)!;
+      expect(tool.annotations?.readOnlyHint, `${name} readOnlyHint`).toBe(false);
+      expect(typeof tool.annotations?.destructiveHint, `${name} destructiveHint`).toBe("boolean");
+      expect(tool._meta?.["anthropic/requiresUserInteraction"], `${name} _meta`).toBe(true);
+    }
+
+    const destructive = tools
+      .filter((tool) => tool.annotations?.destructiveHint === true)
+      .map((tool) => tool.name)
+      .sort();
+    expect(destructive).toEqual(["delete_folder", "delete_note", "move_file", "move_note", "patch_note", "write_note"]);
+
+    const nonDestructiveMutations = tools
+      .filter((tool) => tool.annotations?.destructiveHint === false)
+      .map((tool) => tool.name)
+      .sort();
+    expect(nonDestructiveMutations).toEqual(["create_folder", "manage_tags", "update_frontmatter"]);
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
+
+test("create_folder and delete_folder work through the server", async () => {
+  await writeFile(join(testVaultPath, "note.md"), "# Note");
+
+  const { server, client } = await connectClient();
+  try {
+    const created = await client.callTool({ name: "create_folder", arguments: { path: " Projects/2026 " } });
+    expect(created.isError).toBeFalsy();
+    const createdBody = JSON.parse((created.content as any)[0].text);
+    expect(createdBody).toEqual({
+      success: true,
+      path: "Projects/2026",
+      message: "Successfully created folder: Projects/2026",
+    });
+
+    const listing = await client.callTool({ name: "list_directory", arguments: { path: "Projects" } });
+    expect(JSON.parse((listing.content as any)[0].text).dirs).toEqual(["2026"]);
+
+    const onFile = await client.callTool({ name: "create_folder", arguments: { path: "note.md" } });
+    expect(onFile.isError).toBe(true);
+    expect(JSON.parse((onFile.content as any)[0].text).message).toContain("Path is an existing file");
+
+    const dotFolder = await client.callTool({ name: "create_folder", arguments: { path: ".obsidian/plugins" } });
+    expect(dotFolder.isError).toBe(true);
+    expect(JSON.parse((dotFolder.content as any)[0].text).message).toContain("Access denied");
+
+    const mismatch = await client.callTool({
+      name: "delete_folder",
+      arguments: { path: "Projects/2026", confirmPath: "Projects" },
+    });
+    expect(mismatch.isError).toBe(true);
+    expect(JSON.parse((mismatch.content as any)[0].text).message).toContain("confirmation path does not match");
+
+    const notEmpty = await client.callTool({
+      name: "delete_folder",
+      arguments: { path: "Projects", confirmPath: "Projects" },
+    });
+    expect(notEmpty.isError).toBe(true);
+    expect(JSON.parse((notEmpty.content as any)[0].text).message).toContain("Folder is not empty: Projects (1 entries)");
+
+    const recursiveWithoutTrash = await client.callTool({
+      name: "delete_folder",
+      arguments: { path: "Projects", confirmPath: "Projects", recursive: true },
+    });
+    expect(recursiveWithoutTrash.isError).toBe(true);
+    expect(JSON.parse((recursiveWithoutTrash.content as any)[0].text).message).toContain("requires trashMode 'local'");
+
+    const systemTrash = await client.callTool({
+      name: "delete_folder",
+      arguments: { path: "Projects/2026", confirmPath: "Projects/2026", trashMode: "system" },
+    });
+    expect(systemTrash.isError).toBe(true);
+    expect(JSON.parse((systemTrash.content as any)[0].text).message).toContain("Unsupported trashMode for folders: system");
+
+    const emptied = await client.callTool({
+      name: "delete_folder",
+      arguments: { path: "Projects/2026", confirmPath: "Projects/2026" },
+    });
+    expect(emptied.isError).toBeFalsy();
+    expect(JSON.parse((emptied.content as any)[0].text).message).toContain("Successfully deleted empty folder: Projects/2026");
+
+    await writeFile(join(testVaultPath, "Projects/plan.md"), "# Plan");
+    const trashed = await client.callTool({
+      name: "delete_folder",
+      arguments: { path: "Projects", confirmPath: "Projects", recursive: true, trashMode: "local" },
+    });
+    expect(trashed.isError).toBeFalsy();
+    expect(JSON.parse((trashed.content as any)[0].text).message).toContain("vault trash: Projects (1 entries)");
+    expect(await readFile(join(testVaultPath, ".trash/Projects/plan.md"), "utf8")).toBe("# Plan");
+    await expect(readFile(join(testVaultPath, "Projects/plan.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(join(testVaultPath, "note.md"), "utf8")).toBe("# Note");
+  } finally {
+    await client.close();
+    await server.close();
+  }
 });
 
 test("server can read and write notes via tools", async () => {
@@ -302,6 +459,12 @@ test("read-only mode exposes read tools and rejects every vault mutation", async
     expect(toolNames).toContain("search_notes");
     expect(toolNames).not.toContain("write_note");
     expect(toolNames).not.toContain("manage_tags");
+    expect(toolNames).not.toContain("create_folder");
+    expect(toolNames).not.toContain("delete_folder");
+    for (const tool of listedTools.tools) {
+      expect(tool.annotations?.readOnlyHint, `${tool.name} readOnlyHint`).toBe(true);
+      expect(tool._meta?.["anthropic/requiresUserInteraction"], `${tool.name} _meta`).toBeUndefined();
+    }
 
     const readResult = await client.callTool({
       name: "read_note",
@@ -318,6 +481,8 @@ test("read-only mode exposes read tools and rejects every vault mutation", async
       { name: "move_file", arguments: { oldPath: "existing.md", newPath: "moved.md", confirmOldPath: "existing.md", confirmNewPath: "moved.md" } },
       { name: "update_frontmatter", arguments: { path: "existing.md", frontmatter: { status: "changed" } } },
       { name: "manage_tags", arguments: { path: "existing.md", operation: "list" } },
+      { name: "create_folder", arguments: { path: "blocked-folder" } },
+      { name: "delete_folder", arguments: { path: "blocked-folder", confirmPath: "blocked-folder" } },
     ];
 
     for (const mutation of mutations) {
@@ -327,6 +492,9 @@ test("read-only mode exposes read tools and rejects every vault mutation", async
     }
 
     await expect(readFile(join(testVaultPath, "blocked.md"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(readFile(join(testVaultPath, "blocked-folder"))).rejects.toMatchObject({
       code: "ENOENT",
     });
     expect(await readFile(join(testVaultPath, "existing.md"), "utf8")).toBe(

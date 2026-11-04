@@ -1,6 +1,6 @@
 import { FrontmatterHandler } from './frontmatter.js';
 import { PathFilter } from './pathfilter.js';
-import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats, NoteHeading, ReadNoteLinesParams } from './types.js';
+import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, CreateFolderParams, DeleteFolderParams, FolderResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats, NoteHeading, ReadNoteLinesParams } from './types.js';
 /**
  * Map a filesystem write failure to a clear, accurate Error.
  *
@@ -33,6 +33,20 @@ export declare class FileSystemService {
     exists(path: string): Promise<boolean>;
     isDirectory(path: string): Promise<boolean>;
     deleteNote(params: DeleteNoteParams): Promise<DeleteResult>;
+    /**
+     * Create a folder (and its parents) inside the vault. Refuses the vault root,
+     * dot folders and restricted names (path filter), a path that is an existing
+     * file, and a name differing only in case from an existing sibling: Obsidian
+     * Sync on a case-insensitive device keeps one of the two.
+     */
+    createFolder(params: CreateFolderParams): Promise<FolderResult>;
+    /**
+     * Delete a folder. Without recursive only an empty folder goes; recursive is
+     * allowed only with trashMode 'local', which moves the whole folder to
+     * .trash/<path> so Obsidian can restore it. Never the vault root, never a dot
+     * folder, never a path outside the vault.
+     */
+    deleteFolder(params: DeleteFolderParams): Promise<FolderResult>;
     moveNote(params: MoveNoteParams): Promise<MoveResult>;
     moveFile(params: MoveFileParams): Promise<MoveResult>;
     readMultipleNotes(params: BatchReadParams): Promise<BatchReadResult>;
