@@ -1,13 +1,13 @@
 import { join, resolve, relative, dirname } from 'path';
 import { homedir } from 'os';
-import { readdir, stat, readFile, writeFile, open, unlink, mkdir, access, rename, copyFile } from 'node:fs/promises';
+import { readdir, stat, readFile, writeFile, open, unlink, mkdir, rmdir, access, rename, copyFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { constants, lstatSync, realpathSync } from 'node:fs';
 import trash from 'trash';
 import { FrontmatterHandler } from './frontmatter.js';
 import { PathFilter } from './pathfilter.js';
 import { generateObsidianUri } from './uri.js';
-import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats, NoteHeading, ReadNoteLinesParams } from './types.js';
+import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, CreateFolderParams, DeleteFolderParams, FolderResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats, NoteHeading, ReadNoteLinesParams } from './types.js';
 
 /**
  * Map a filesystem write failure to a clear, accurate Error.
@@ -609,6 +609,215 @@ export class FileSystemService {
         success: false,
         path: path,
         message: `Failed to delete file: ${path} - ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
+  /**
+   * Create a folder (and its parents) inside the vault. Refuses the vault root,
+   * dot folders and restricted names (path filter), a path that is an existing
+   * file, and a name differing only in case from an existing sibling: Obsidian
+   * Sync on a case-insensitive device keeps one of the two.
+   */
+  async createFolder(params: CreateFolderParams): Promise<FolderResult> {
+    const path = this.normalizePath(params.path);
+
+    if (!path) {
+      return {
+        success: false,
+        path: path,
+        message: 'Cannot create the vault root: a folder path is required.'
+      };
+    }
+
+    if (!this.pathFilter.isAllowedForListing(path)) {
+      return {
+        success: false,
+        path: path,
+        message: `Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`
+      };
+    }
+
+    try {
+      const fullPath = this.resolvePath(path);
+
+      try {
+        const existing = await stat(fullPath);
+        return existing.isDirectory()
+          ? { success: false, path: path, message: `Folder already exists: ${path}` }
+          : { success: false, path: path, message: `Path is an existing file: ${path}. Choose another folder name.` };
+      } catch (error) {
+        if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
+          throw error;
+        }
+      }
+
+      // Walk the segments: a new name may not differ only in case from an
+      // existing sibling (one of the two is dropped on case-insensitive devices).
+      let current = this.vaultPath;
+      for (const segment of path.split('/').filter(Boolean)) {
+        let entries: string[] = [];
+        try {
+          entries = await readdir(current);
+        } catch (error) {
+          if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
+            throw error;
+          }
+        }
+        if (!entries.includes(segment)) {
+          const clash = entries.find((entry) => entry.toLowerCase() === segment.toLowerCase());
+          if (clash) {
+            return {
+              success: false,
+              path: path,
+              message: `Name differs only in case from the existing "${clash}": ${path}. Case-only names break sync on case-insensitive devices; choose another name.`
+            };
+          }
+        }
+        current = join(current, segment);
+      }
+
+      await mkdir(fullPath, { recursive: true });
+
+      return {
+        success: true,
+        path: path,
+        message: `Successfully created folder: ${path}`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        path: path,
+        message: `Failed to create folder: ${path} - ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
+  /**
+   * Delete a folder. Without recursive only an empty folder goes; recursive is
+   * allowed only with trashMode 'local', which moves the whole folder to
+   * .trash/<path> so Obsidian can restore it. Never the vault root, never a dot
+   * folder, never a path outside the vault.
+   */
+  async deleteFolder(params: DeleteFolderParams): Promise<FolderResult> {
+    const { recursive = false, trashMode = 'none' } = params;
+    const path = this.normalizePath(params.path);
+    const confirmPath = this.normalizePath(params.confirmPath);
+
+    // Confirmation check - paths must match exactly
+    if (path !== confirmPath) {
+      return {
+        success: false,
+        path: path,
+        message: "Deletion cancelled: confirmation path does not match. For safety, both 'path' and 'confirmPath' must be identical."
+      };
+    }
+
+    if (!path) {
+      return {
+        success: false,
+        path: path,
+        message: 'Cannot delete the vault root.'
+      };
+    }
+
+    if (!this.pathFilter.isAllowedForListing(path)) {
+      return {
+        success: false,
+        path: path,
+        message: `Access denied: ${path}. This path is restricted (system files like .obsidian, .git, and dotfiles are not accessible).`
+      };
+    }
+
+    if (trashMode !== 'none' && trashMode !== 'local') {
+      return {
+        success: false,
+        path: path,
+        message: `Unsupported trashMode for folders: ${trashMode}. Use 'none' (empty folder only) or 'local'.`
+      };
+    }
+
+    if (recursive && trashMode !== 'local') {
+      return {
+        success: false,
+        path: path,
+        message: `Recursive deletion requires trashMode 'local': ${path}. A non-empty folder is only moved to the vault trash, never deleted permanently.`
+      };
+    }
+
+    try {
+      const fullPath = this.resolvePath(path);
+      const stats = await stat(fullPath);
+      if (!stats.isDirectory()) {
+        return {
+          success: false,
+          path: path,
+          message: `Cannot delete: ${path} is not a folder. Use delete_note for files.`
+        };
+      }
+
+      const entries = await readdir(fullPath);
+      if (!recursive && entries.length > 0) {
+        return {
+          success: false,
+          path: path,
+          message: `Folder is not empty: ${path} (${entries.length} entries). Use recursive=true with trashMode 'local' to move it to the vault trash.`
+        };
+      }
+
+      if (trashMode === 'local') {
+        const trashDir = join(this.vaultPath, '.trash');
+        let trashPath = join(trashDir, path);
+
+        // Ensure trash directory exists
+        await mkdir(dirname(trashPath), { recursive: true });
+
+        // Handle collisions by appending a timestamp
+        try {
+          await access(trashPath, constants.F_OK);
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          trashPath = join(trashDir, `${path}-${timestamp}`);
+        } catch {
+          // Folder does not exist in trash, no collision
+        }
+
+        await rename(fullPath, trashPath);
+
+        return {
+          success: true,
+          path: path,
+          message: `Successfully moved folder to vault trash: ${path} (${entries.length} entries)`
+        };
+      }
+
+      await rmdir(fullPath);
+
+      return {
+        success: true,
+        path: path,
+        message: `Successfully deleted empty folder: ${path}`
+      };
+    } catch (error) {
+      if (error instanceof Error && 'code' in error) {
+        if (error.code === 'ENOENT') {
+          return {
+            success: false,
+            path: path,
+            message: `Folder not found: ${path}. Use list_directory to see available folders.`
+          };
+        }
+        if (error.code === 'EACCES' || error.code === 'EPERM') {
+          return {
+            success: false,
+            path: path,
+            message: `Permission denied: ${path}. The folder exists but cannot be changed due to filesystem permissions.`
+          };
+        }
+      }
+      return {
+        success: false,
+        path: path,
+        message: `Failed to delete folder: ${path} - ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
   }
