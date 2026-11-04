@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `write_note` with `mode: "append"` or `"prepend"` now joins the existing text and the new text on a line boundary: one line break (CRLF in CRLF notes) is inserted when neither side provides one, and nothing is added when a break is already there ([#273](https://github.com/bitbonsai/mcpvault/issues/273)).
+- `move_note` now rewrites `[[wikilinks]]` in other notes that point at the moved note, including aliases, headings, embeds and path-qualified links, and reports `linksUpdated` and `notesUpdated` in its result ([#274](https://github.com/bitbonsai/mcpvault/issues/274)).
+- `manage_tags` `add` and `remove` change only the frontmatter `tags` list; inline `#tags` from the body are no longer copied into frontmatter. `list` still reports both, adding a tag that already exists inline is reported as already present, and removing an inline-only tag is reported as not found ([#275](https://github.com/bitbonsai/mcpvault/issues/275)).
+
 ## [0.18.3] - 2026-11-01
 
 ### Fixed

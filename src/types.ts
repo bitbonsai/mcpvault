@@ -102,6 +102,10 @@ export interface MoveResult {
   oldPath: string;
   newPath: string;
   message: string;
+  /** Number of [[wikilink]] occurrences rewritten to the new name (move_note only). */
+  linksUpdated?: number;
+  /** Vault-relative paths of the notes whose links were rewritten (move_note only). */
+  notesUpdated?: string[];
 }
 
 // Batch read types
