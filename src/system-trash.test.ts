@@ -15,6 +15,8 @@ test.each(['note[1].md', 'note{1,2}.md'])(
       vi.mocked(trash).mockClear();
       const fullPath = join(vault, name);
       await writeFile(fullPath, '# Temporary note');
+      // A second note keeps the vault from becoming empty (the last note is never deleted).
+      await writeFile(join(vault, 'keep.md'), '# Kept');
 
       const result = await new FileSystemService(vault).deleteNote({
         path: name,

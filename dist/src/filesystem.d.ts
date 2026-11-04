@@ -26,6 +26,27 @@ export declare class FileSystemService {
     private resolvePath;
     private withPathLock;
     private atomicWrite;
+    private toVaultRelative;
+    /**
+     * True when the vault holds at least one note (a file the path filter
+     * accepts, anywhere outside filtered paths such as .obsidian and .trash),
+     * optionally only `within` a folder and/or ignoring the subtree `excluding`.
+     * Both are absolute paths inside the vault. The scan stops at the first note
+     * found, so the usual cost is a single readdir. Obsidian Sync on mobile
+     * pauses itself on an empty vault, so the delete tools keep the last note.
+     */
+    private hasNote;
+    /**
+     * Name of an existing entry that differs only in case from a segment of a
+     * path about to be created, or undefined. Walks the segments from the vault
+     * root and stops at the first one that does not exist yet (nothing below it
+     * can clash); a segment that exists with the exact name never clashes.
+     * `ignore` is the absolute path of a move's source, which may match its own
+     * new name. Case-only names lose one of the two files on case-insensitive
+     * devices, so the write and move tools refuse them, as create_folder does.
+     */
+    private findCaseOnlyClash;
+    private caseOnlyClashMessage;
     readNote(path: string): Promise<ParsedNote>;
     writeNote(params: NoteWriteParams): Promise<void>;
     patchNote(params: PatchNoteParams): Promise<PatchNoteResult>;
