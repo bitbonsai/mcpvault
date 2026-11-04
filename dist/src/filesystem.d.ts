@@ -28,12 +28,32 @@ export declare class FileSystemService {
     private atomicWrite;
     readNote(path: string): Promise<ParsedNote>;
     writeNote(params: NoteWriteParams): Promise<void>;
+    /**
+     * Join appended or prepended text to the existing body on a line boundary.
+     * Exactly one line break (matching the note's line endings) is inserted when
+     * neither side of the boundary provides one; a newline already there, at the
+     * end of the first part or the start of the second, is kept as is, so no
+     * blank line is introduced. An empty side needs no separator.
+     */
+    private joinNoteContent;
     patchNote(params: PatchNoteParams): Promise<PatchNoteResult>;
     listDirectory(path?: string): Promise<DirectoryListing>;
     exists(path: string): Promise<boolean>;
     isDirectory(path: string): Promise<boolean>;
     deleteNote(params: DeleteNoteParams): Promise<DeleteResult>;
     moveNote(params: MoveNoteParams): Promise<MoveResult>;
+    /**
+     * Rewrite [[wikilinks]] that target the note formerly at oldPath so they
+     * point at newPath. Covers [[Name]], [[Name|alias]], [[Name#heading]],
+     * ![[Name]] embeds and the path-qualified [[folder/Name]] and
+     * [[folder/Name.md]] forms. Only an exact, case-sensitive target matches, so
+     * [[Older]] or [[Name-thing]] are left alone. Bare targets become the new
+     * basename and path-qualified targets the new vault-relative path, both
+     * without the .md extension. Aliases, headings and the embed marker are kept.
+     * Only notes that changed are written back, with their bytes otherwise
+     * untouched, so line endings are preserved.
+     */
+    private updateWikiLinksAfterMove;
     moveFile(params: MoveFileParams): Promise<MoveResult>;
     readMultipleNotes(params: BatchReadParams): Promise<BatchReadResult>;
     updateFrontmatter(params: UpdateFrontmatterParams): Promise<void>;

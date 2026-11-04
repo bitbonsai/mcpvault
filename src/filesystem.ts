@@ -292,9 +292,7 @@ export class FileSystemService {
               ? { ...existingNote.frontmatter, ...frontmatter }
               : existingNote.frontmatter;
 
-            const mergedContent = mode === 'append'
-              ? existingNote.content + content
-              : content + existingNote.content;
+            const mergedContent = this.joinNoteContent(mode, existingNote, content);
 
             if (existingNote.matter && existingNote.matter.trim() !== '') {
               // Preserve raw formatting for unmodified fields by only applying explicit updates
@@ -317,6 +315,26 @@ export class FileSystemService {
         throw classifyWriteError(error, path);
       }
     });
+  }
+
+  /**
+   * Join appended or prepended text to the existing body on a line boundary.
+   * Exactly one line break (matching the note's line endings) is inserted when
+   * neither side of the boundary provides one; a newline already there, at the
+   * end of the first part or the start of the second, is kept as is, so no
+   * blank line is introduced. An empty side needs no separator.
+   */
+  private joinNoteContent(mode: 'append' | 'prepend', existingNote: ParsedNote, content: string): string {
+    const existing = existingNote.content;
+    const [first, second] = mode === 'append' ? [existing, content] : [content, existing];
+    if (first.length === 0 || second.length === 0) {
+      return first + second;
+    }
+    if (first.endsWith('\n') || /^\r?\n/.test(second)) {
+      return first + second;
+    }
+    const eol = existingNote.originalContent.includes('\r\n') || content.includes('\r\n') ? '\r\n' : '\n';
+    return first + eol + second;
   }
 
   async patchNote(params: PatchNoteParams): Promise<PatchNoteResult> {
@@ -722,11 +740,22 @@ export class FileSystemService {
       // Delete the source file
       await unlink(oldFullPath);
 
+      // Point [[wikilinks]] in the rest of the vault at the new name
+      const links = await this.updateWikiLinksAfterMove(oldPath, newPath);
+      const linkSummary = links.linksUpdated === 0
+        ? 'No wiki links needed updating.'
+        : `Updated ${links.linksUpdated} wiki link${links.linksUpdated === 1 ? '' : 's'} in ${links.notesUpdated.length} note${links.notesUpdated.length === 1 ? '' : 's'}.`;
+      const failureSummary = links.failures.length === 0
+        ? ''
+        : ` Could not update links in: ${links.failures.join('; ')}`;
+
       return {
         success: true,
         oldPath,
         newPath,
-        message: `Successfully moved note from ${oldPath} to ${newPath}`
+        message: `Successfully moved note from ${oldPath} to ${newPath}. ${linkSummary}${failureSummary}`,
+        linksUpdated: links.linksUpdated,
+        notesUpdated: links.notesUpdated
       };
 
     } catch (error) {
@@ -737,6 +766,79 @@ export class FileSystemService {
         message: `Failed to move note: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
+  }
+
+  /**
+   * Rewrite [[wikilinks]] that target the note formerly at oldPath so they
+   * point at newPath. Covers [[Name]], [[Name|alias]], [[Name#heading]],
+   * ![[Name]] embeds and the path-qualified [[folder/Name]] and
+   * [[folder/Name.md]] forms. Only an exact, case-sensitive target matches, so
+   * [[Older]] or [[Name-thing]] are left alone. Bare targets become the new
+   * basename and path-qualified targets the new vault-relative path, both
+   * without the .md extension. Aliases, headings and the embed marker are kept.
+   * Only notes that changed are written back, with their bytes otherwise
+   * untouched, so line endings are preserved.
+   */
+  private async updateWikiLinksAfterMove(
+    oldPath: string,
+    newPath: string
+  ): Promise<{ linksUpdated: number; notesUpdated: string[]; failures: string[] }> {
+    const stripMd = (p: string): string => p.endsWith('.md') ? p.slice(0, -3) : p;
+    const basename = (p: string): string => p.slice(p.lastIndexOf('/') + 1);
+
+    const targets = new Map<string, string>();
+    targets.set(stripMd(basename(oldPath)), stripMd(basename(newPath)));
+    targets.set(stripMd(oldPath), stripMd(newPath));
+    if (oldPath.endsWith('.md')) {
+      targets.set(basename(oldPath), stripMd(basename(newPath)));
+      targets.set(oldPath, stripMd(newPath));
+    }
+
+    const result = { linksUpdated: 0, notesUpdated: [] as string[], failures: [] as string[] };
+
+    const scan = async (dirPath: string, relativePath: string = ''): Promise<void> => {
+      let entries;
+      try {
+        entries = await readdir(dirPath, { withFileTypes: true });
+      } catch (error) {
+        result.failures.push(`${relativePath || '/'} (${error instanceof Error ? error.message : 'Unknown error'})`);
+        return;
+      }
+
+      for (const entry of entries) {
+        const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+        const fullEntryPath = join(dirPath, entry.name);
+
+        if (entry.isDirectory()) {
+          if (!this.pathFilter.isAllowedForListing(entryRelativePath)) continue;
+          await scan(fullEntryPath, entryRelativePath);
+        } else if (entry.isFile() && this.pathFilter.isAllowed(entryRelativePath)) {
+          if (entryRelativePath === newPath) continue;
+          try {
+            const content = await readFile(fullEntryPath, 'utf-8');
+            let count = 0;
+            // embed marker, target, optional #heading, optional |alias
+            const linkPattern = /(!?)\[\[([^\[\]|#]+)((?:#[^\[\]|]*)?)((?:\|[^\[\]]*)?)\]\]/g;
+            const updated = content.replace(linkPattern, (match, embed: string, target: string, heading: string, alias: string) => {
+              const replacement = targets.get(target);
+              if (replacement === undefined) return match;
+              count++;
+              return `${embed}[[${replacement}${heading}${alias}]]`;
+            });
+            if (count === 0) continue;
+            await this.withPathLock(entryRelativePath, (fullPath) => this.atomicWrite(fullPath, updated));
+            result.linksUpdated += count;
+            result.notesUpdated.push(entryRelativePath);
+          } catch (error) {
+            result.failures.push(`${entryRelativePath} (${error instanceof Error ? error.message : 'Unknown error'})`);
+          }
+        }
+      }
+    };
+
+    await scan(this.vaultPath);
+    result.notesUpdated.sort();
+    return result;
   }
 
   async moveFile(params: MoveFileParams): Promise<MoveResult> {
@@ -1003,41 +1105,69 @@ export class FileSystemService {
     try {
       return await this.withPathLock(path, async (fullPath) => {
         const note = await this.readNote(fullPath);
-        let currentTags: string[] = [];
+        let frontmatterTags: string[] = [];
 
         // Extract tags from frontmatter
         if (note.frontmatter.tags) {
           if (Array.isArray(note.frontmatter.tags)) {
-            currentTags = note.frontmatter.tags;
+            frontmatterTags = note.frontmatter.tags;
           } else if (typeof note.frontmatter.tags === 'string') {
-            currentTags = [note.frontmatter.tags];
+            frontmatterTags = [note.frontmatter.tags];
           }
         }
 
-        // Also extract inline tags from content
+        // Inline #tags from the body count as present, but are never written to frontmatter
         const inlineTagMatches = note.content.match(/#[a-zA-Z0-9_-]+/g) || [];
         const inlineTags = inlineTagMatches.map(tag => tag.slice(1)); // Remove #
-        currentTags = [...new Set([...currentTags, ...inlineTags])]; // Deduplicate
+        const allTags = [...new Set([...frontmatterTags, ...inlineTags])]; // Deduplicate
 
         if (operation === 'list') {
           return {
             path,
             operation,
-            tags: currentTags,
+            tags: allTags,
             success: true
           };
         }
 
-        let newTags = [...currentTags];
+        // Writes start from the frontmatter tags only
+        let newTags = [...frontmatterTags];
+        const changed: string[] = [];
+        const skipped: string[] = [];
 
         if (operation === 'add') {
           for (const tag of tags) {
-            if (!newTags.includes(tag)) {
+            if (changed.includes(tag)) continue;
+            if (allTags.includes(tag)) {
+              if (!skipped.includes(tag)) skipped.push(tag);
+            } else {
               newTags.push(tag);
+              changed.push(tag);
             }
           }
         } else if (operation === 'remove') {
-          newTags = newTags.filter(tag => !tags.includes(tag));
+          for (const tag of tags) {
+            const list = frontmatterTags.includes(tag) ? changed : skipped;
+            if (!list.includes(tag)) list.push(tag);
+          }
+          newTags = frontmatterTags.filter(tag => !tags.includes(tag));
+        }
+
+        const verb = operation === 'add' ? 'added' : 'removed';
+        const skippedSummary = skipped.length === 0
+          ? ''
+          : operation === 'add'
+            ? ` Already present: ${skipped.join(', ')}.`
+            : ` Not found in frontmatter: ${skipped.join(', ')}. Inline tags in the note body are not changed.`;
+
+        if (changed.length === 0) {
+          return {
+            path,
+            operation,
+            tags: newTags,
+            success: true,
+            message: `No tags ${verb}.${skippedSummary}`
+          };
         }
 
         // Build tag updates for preserveStringify
@@ -1075,7 +1205,7 @@ export class FileSystemService {
           operation,
           tags: newTags,
           success: true,
-          message: `Successfully ${operation === 'add' ? 'added' : 'removed'} tags`
+          message: `Successfully ${verb} tags: ${changed.join(', ')}.${skippedSummary}`
         };
       });
     } catch (error) {

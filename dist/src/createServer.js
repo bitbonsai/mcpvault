@@ -129,7 +129,7 @@ export function createServer(vaultPath, options = {}) {
             },
             {
                 name: "move_note",
-                description: "Move or rename a note in the vault",
+                description: "Move or rename a note in the vault and update [[wikilinks]] in other notes to the new name",
                 inputSchema: {
                     type: "object",
                     properties: {

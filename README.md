@@ -494,6 +494,8 @@ Write a note to the vault with optional frontmatter and write mode.
 - `append`: Add content to the end of existing file
 - `prepend`: Add content to the beginning of existing file
 
+`append` and `prepend` join the existing text and the new text on a line boundary: when neither side already provides a line break, one is inserted (CRLF in CRLF notes). Nothing is added when a break is already there, so no blank line appears.
+
 **Request (Overwrite):**
 
 ```json
@@ -672,7 +674,7 @@ Extract only the frontmatter from a note without reading the full content.
 
 ### `manage_tags`
 
-Add, remove, or list tags in a note. Tags are managed in the frontmatter and inline tags are detected.
+Add, remove, or list tags in a note. `list` returns frontmatter tags and inline `#tags` from the body together. `add` and `remove` change only the frontmatter `tags` list; inline tags are never copied into frontmatter or edited in the body. Adding a tag that already exists inline is reported as already present, and removing a tag that exists only inline is reported as not found.
 
 **Request (List Tags):**
 
@@ -720,7 +722,7 @@ Add, remove, or list tags in a note. Tags are managed in the frontmatter and inl
   "operation": "add",
   "tags": ["research", "ai", "machine-learning", "important"],
   "success": true,
-  "message": "Successfully added tags"
+  "message": "Successfully added tags: machine-learning, important. Already present: ai."
 }
 ```
 
@@ -772,6 +774,8 @@ Search for notes in the vault by content or frontmatter with multi-word matching
 
 Move or rename a note in the vault (`.md`, `.markdown`, `.txt`, `.base`, `.canvas`).
 
+After the move, `[[wikilinks]]` in other notes that point at the old name are rewritten to the new one: `[[Note]]`, `[[Note|alias]]`, `[[Note#heading]]`, `![[Note]]` embeds and path-qualified `[[folder/Note]]` or `[[folder/Note.md]]` links. Bare links receive the new basename and path-qualified links the new vault-relative path, both without `.md`; aliases, headings and the embed marker are kept. Only exact, case-sensitive targets match, so `[[Notes]]` or `[[Note-2]]` stay untouched. The result lists the rewritten notes in `notesUpdated` and the number of links in `linksUpdated`.
+
 **Request:**
 
 ```json
@@ -792,7 +796,9 @@ Move or rename a note in the vault (`.md`, `.markdown`, `.txt`, `.base`, `.canva
   "success": true,
   "oldPath": "drafts/article.md",
   "newPath": "published/article.md",
-  "message": "Successfully moved note from drafts/article.md to published/article.md"
+  "message": "Successfully moved note from drafts/article.md to published/article.md. Updated 3 wiki links in 2 notes.",
+  "linksUpdated": 3,
+  "notesUpdated": ["index.md", "reading/queue.md"]
 }
 ```
 
