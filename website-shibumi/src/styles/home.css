@@ -759,9 +759,22 @@
 }
 
 [data-component="update-callout"] .older-updates.is-expanded {
-  max-height: 48rem;
+  max-height: min(48rem, 70vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 92, 246, 0.45) transparent;
   -webkit-mask-image: none;
   mask-image: none;
+}
+
+[data-component="update-callout"] .older-updates.is-expanded::-webkit-scrollbar {
+  width: 0.5rem;
+}
+
+[data-component="update-callout"] .older-updates.is-expanded::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: rgba(139, 92, 246, 0.45);
 }
 
 [data-component="update-callout"] .updates-changelog-link {
