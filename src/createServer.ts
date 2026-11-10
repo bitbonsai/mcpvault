@@ -315,9 +315,7 @@ export function createServer(vaultPath: string, options: CreateServerOptions = {
       ];
 
     return {
-      tools: readOnly
-        ? tools.filter((tool) => !MUTATING_TOOLS.has(tool.name))
-        : tools,
+      tools: annotateTools(readOnly ? tools.filter((tool) => !MUTATING_TOOLS.has(tool.name)) : tools),
     };
   });
 
@@ -571,4 +569,29 @@ function trimPaths(args: any): any {
   }
 
   return trimmed;
+}
+
+const READ_ONLY_TOOLS = new Set([
+  "read_note",
+  "list_directory",
+  "search_notes",
+  "read_multiple_notes",
+  "get_notes_info",
+  "get_frontmatter",
+  "get_vault_stats",
+  "list_all_tags",
+  "wiki_link",
+  "get_note_outline",
+  "read_note_lines",
+]);
+
+function annotateTools(tools: Tool[]): Tool[] {
+  return tools.map((tool) => {
+    const mutates = MUTATING_TOOLS.has(tool.name);
+    if (mutates === READ_ONLY_TOOLS.has(tool.name)) throw new Error(`Unclassified MCP tool: ${tool.name}`);
+    return {
+      ...tool,
+      annotations: { readOnlyHint: !mutates, destructiveHint: mutates, openWorldHint: false },
+    };
+  });
 }
