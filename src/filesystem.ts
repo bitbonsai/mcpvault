@@ -91,7 +91,9 @@ export class FileSystemService {
     }
     // Normalize path separators for cross-platform comparison (Windows backslashes)
     const normalized = p.replace(/\\/g, '/');
-    const vaultPrefix = this.vaultPath.replace(/\\/g, '/');
+    // Drop any trailing separator: a vault at a drive or share root resolves to e.g. "Z:\",
+    // and "Z:/" + "/" would never match "Z:/notes/a.md".
+    const vaultPrefix = this.vaultPath.replace(/\\/g, '/').replace(/\/+$/, '');
     // Strip vault path prefix before stripping leading slash, so absolute paths
     // like "/Users/me/vault/wiki/note.md" are handled correctly.
     if (normalized.startsWith(vaultPrefix + '/')) {

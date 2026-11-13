@@ -323,4 +323,18 @@ describe("SearchService", () => {
       expect(results.map(r => r.p)).not.toContain("Project-notes/x.md");
     });
   });
+
+  // A vault at a drive or share root ("Z:\", "\\host\share") resolves to a path that already
+  // ends in a separator. Simulated by appending one so this also reproduces on POSIX CI.
+  describe("vault path with a trailing separator (drive or share root)", () => {
+    test("result paths keep their first character and pathPrefix still matches", async () => {
+      await mkdir(join(testVaultPath, "Resources"), { recursive: true });
+      await writeFile(join(testVaultPath, "Resources", "guide.md"), "kiwi fruit");
+      (searchService as any).vaultPath = (searchService as any).vaultPath + "/";
+      const all = await searchService.search({ query: "kiwi", limit: 5 });
+      expect(all.map(r => r.p)).toEqual(["Resources/guide.md"]);
+      const scoped = await searchService.search({ query: "kiwi", limit: 5, pathPrefix: "Resources" });
+      expect(scoped.map(r => r.p)).toEqual(["Resources/guide.md"]);
+    });
+  });
 });
