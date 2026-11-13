@@ -139,7 +139,7 @@ export function ComparisonTable() {
             <div class="comparison-table-footer">
               <div class="comparison-summary">
                 <div class="comparison-summary-item">
-                  <div class="comparison-summary-value comparison-summary-value--accent">18</div>
+                  <div class="comparison-summary-value comparison-summary-value--accent">20</div>
                   <div class="comparison-summary-label">MCP tools</div>
                 </div>
                 <div class="comparison-summary-item">
