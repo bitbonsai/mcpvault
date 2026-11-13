@@ -105,35 +105,39 @@ export function ComparisonTable() {
           <p class="comparison-lede">The main difference is where each approach runs and which layer controls access to vault files.</p>
         </div>
 
-        <div class="comparison-table-scroll fade-in-on-scroll">
-          <div class="comparison-table">
-            <div class="comparison-table-head">
-              <div class="comparison-row comparison-row--head">
-                <div class="comparison-head-cell comparison-head-cell--feature">Feature</div>
-                <div class="comparison-head-cell">
-                  <div class="comparison-head-cell-title comparison-head-cell-title--accent">MCPVault</div>
-                  <div class="comparison-head-cell-subtitle">This package</div>
+        <div class="comparison-table-wrap fade-in-on-scroll">
+          <div class="comparison-card">
+            <div class="comparison-table-scroll">
+              <div class="comparison-table">
+                <div class="comparison-table-head">
+                  <div class="comparison-row comparison-row--head">
+                    <div class="comparison-head-cell comparison-head-cell--feature">Feature</div>
+                    <div class="comparison-head-cell">
+                      <div class="comparison-head-cell-title comparison-head-cell-title--accent">MCPVault</div>
+                      <div class="comparison-head-cell-subtitle">This package</div>
+                    </div>
+                    <div class="comparison-head-cell">
+                      <div class="comparison-head-cell-title">Plugin + REST API</div>
+                      <div class="comparison-head-cell-subtitle">Obsidian community plugin</div>
+                    </div>
+                    <div class="comparison-head-cell">
+                      <div class="comparison-head-cell-title">General file access</div>
+                      <div class="comparison-head-cell-subtitle">Client or shell tools</div>
+                    </div>
+                  </div>
                 </div>
-                <div class="comparison-head-cell">
-                  <div class="comparison-head-cell-title">Plugin + REST API</div>
-                  <div class="comparison-head-cell-subtitle">Obsidian community plugin</div>
-                </div>
-                <div class="comparison-head-cell">
-                  <div class="comparison-head-cell-title">General file access</div>
-                  <div class="comparison-head-cell-subtitle">Client or shell tools</div>
+
+                <div class="comparison-table-body">
+                  {FEATURES.map((feature, index) => (
+                    <div class="comparison-row" style={`animation-delay: ${index * 0.1}s`}>
+                      <div class="comparison-feature-name">{feature.name}</div>
+                      <StatusValue cell={feature.mcpObsidian} />
+                      <StatusValue cell={feature.otherMcpObsidian} />
+                      <StatusValue cell={feature.directAccess} />
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
-
-            <div class="comparison-table-body">
-              {FEATURES.map((feature, index) => (
-                <div class="comparison-row" style={`animation-delay: ${index * 0.1}s`}>
-                  <div class="comparison-feature-name">{feature.name}</div>
-                  <StatusValue cell={feature.mcpObsidian} />
-                  <StatusValue cell={feature.otherMcpObsidian} />
-                  <StatusValue cell={feature.directAccess} />
-                </div>
-              ))}
             </div>
 
             <div class="comparison-table-footer">
