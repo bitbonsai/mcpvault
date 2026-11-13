@@ -1,4 +1,4 @@
-import { join, resolve } from 'path';
+import { join, relative, resolve } from 'path';
 import { readFile, readdir } from 'node:fs/promises';
 import type { PathFilter } from './pathfilter.js';
 import type { RankCandidate, SearchParams, SearchResult } from './types.js';
@@ -58,10 +58,11 @@ export class SearchService {
     const markdownFiles = await this.findMarkdownFiles(this.vaultPath);
 
     // Pre-filter by pathFilter before I/O
-    const prefixLen = this.vaultPath.length + 1;
     const allowedFiles: { fullPath: string; relativePath: string }[] = [];
     for (const fullPath of markdownFiles) {
-      const relativePath = fullPath.substring(prefixLen).replace(/\\/g, '/');
+      // relative() rather than substring(vaultPath.length + 1): a vault at a drive or share root
+      // (e.g. "Z:\") already ends in a separator, and the fixed offset cut the first character.
+      const relativePath = relative(this.vaultPath, fullPath).replace(/\\/g, '/');
       if (!this.pathFilter.isAllowed(relativePath)) continue;
       // Scope to the requested subtree, and skip excluded subtrees, before I/O
       if (normalizedPrefix && !isUnderSubtree(relativePath, normalizedPrefix)) continue;

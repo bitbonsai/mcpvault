@@ -2394,3 +2394,28 @@ describe("findPathForWikiLink (#101)", () => {
     expect(matches).toEqual(["a/b/Note.md"]);
   });
 });
+
+// ============================================================================
+// VAULT AT A DRIVE OR SHARE ROOT
+// realpathSync("Z:\\") and share roots keep a trailing separator. Simulated by
+// appending one to the resolved vault path, so this also reproduces on POSIX CI.
+// ============================================================================
+
+describe("vault path with a trailing separator (drive or share root)", () => {
+  beforeEach(() => {
+    (fileSystem as any).vaultPath = (fileSystem as any).vaultPath + "/";
+  });
+
+  test("patchNote succeeds", async () => {
+    await writeFile(join(testVaultPath, "root-note.md"), "alpha line\n");
+    const result = await fileSystem.patchNote({ path: "root-note.md", oldString: "alpha", newString: "beta" });
+    expect(result.success).toBe(true);
+    expect(await readFile(join(testVaultPath, "root-note.md"), "utf-8")).toBe("beta line\n");
+  });
+
+  test("updateFrontmatter succeeds", async () => {
+    await writeFile(join(testVaultPath, "fm-note.md"), "body\n");
+    await fileSystem.updateFrontmatter({ path: "fm-note.md", frontmatter: { tested: true } });
+    expect(await readFile(join(testVaultPath, "fm-note.md"), "utf-8")).toContain("tested: true");
+  });
+});
