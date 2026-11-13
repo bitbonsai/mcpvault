@@ -80,7 +80,7 @@ website-shibumi/       # Bun + Hono + TSX website serving mcpvault.org (separate
 | get_vault_stats | Vault statistics: total notes, folders, size, recent files |
 | list_all_tags | List all tags across the vault with occurrence counts |
 | wiki_link | Resolve Obsidian [[wiki links]] (incl. path-qualified [[folder/Note]]) and return the note |
-| create_folder | Create a folder with its parents (refuses dot folders, existing files, case-only sibling clashes) |
+| create_folder | Create a folder with its parents (idempotent; refuses dot folders, existing files, case-only sibling clashes) |
 | delete_folder | Delete an empty folder, or move a non-empty one to `.trash` with `recursive` + `trashMode: "local"` (requires path confirmation) |
 
 Every tool definition carries MCP tool annotations (`title`, `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`). Tools in `MUTATING_TOOLS` are also returned with `_meta["anthropic/requiresUserInteraction"]: true` from `tools/list`, so a new mutating tool gets both for free by being added to the set and annotated inline.
@@ -141,6 +141,7 @@ When modifying file operations:
 - `dist/` is committed. Every src change needs `npm run build` + commit dist in the SAME change; src-only merges leave dist stale (happened twice: fde15eb engine swap, PR #151).
 - TypeScript toolchain upgrades change dist output (TS7 altered `.d.ts.map` sourcemaps only) — rebuild + commit dist after any TS bump or the dirty tree blocks automation that requires clean main.
 - Claude Code discovers skills only under `.claude/skills/`; repo keeps them in `skills/`. Committed symlink `.claude/skills/triage -> ../../skills/triage` bridges it — same pattern for any new skill.
+- Folder paths: the PathFilter canonical form strips trailing dots, so `.`/`..` segments pass `isAllowedForListing` and `.` resolves to the vault root. Folder tools reject those segments and the resolved vault root explicitly (`isAllowedFolderPath`, `resolveFolderPath`).
 - `pathFilter.isAllowed` + `normalizePath` must guard EVERY new tool's path input (PR #146 blocker: `readNoteLines` skipped them = read `.obsidian/` files). Mirror `readNote`'s guard block.
 - Outline/heading parsing must be fence-aware: headings inside code fences do not count. Support backtick and tilde fences with up to three leading spaces, and require closing fences to use the same marker with at least the opening length.
 - Read-only mode is defense-in-depth: mutating tools are both omitted from `tools/list` and rejected in `tools/call`. Every new mutating tool must be added to `MUTATING_TOOLS` in `src/createServer.ts` and covered by the read-only regression.

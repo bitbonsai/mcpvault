@@ -315,7 +315,7 @@ export function createServer(vaultPath, options = {}) {
             },
             {
                 name: "create_folder",
-                description: "Create a folder in the vault, with its parents. Refuses dot folders, the vault root, a path that is an existing file, and a name that differs only in case from an existing sibling (case-only names break sync on case-insensitive devices).",
+                description: "Create a folder in the vault, with its parents. Succeeds without changes if the folder already exists. Refuses dot folders, the vault root, a path that is an existing file, and a name that differs only in case from an existing sibling (case-only names break sync on case-insensitive devices).",
                 inputSchema: {
                     type: "object",
                     properties: {
@@ -327,7 +327,7 @@ export function createServer(vaultPath, options = {}) {
             },
             {
                 name: "delete_folder",
-                description: "Delete a folder from the vault (requires confirmation). By default only an EMPTY folder is deleted. recursive=true is allowed only with trashMode 'local' and moves the whole folder to .trash/<path>; recursive with permanent deletion is refused. Dot folders and the vault root are refused.",
+                description: "Delete a folder from the vault (requires confirmation). By default only an EMPTY folder is deleted. recursive=true is allowed only with trashMode 'local' and moves the whole folder to .trash/<path>; recursive with permanent deletion is refused. Dot folders, symbolic links and the vault root are refused.",
                 inputSchema: {
                     type: "object",
                     properties: {

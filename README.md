@@ -832,7 +832,7 @@ Move or rename any file in the vault with binary-safe file operations (file-only
 
 ### `create_folder`
 
-Create a folder in the vault, including missing parents.
+Create a folder in the vault, including missing parents. Calling it for a folder that already exists succeeds with `created: false`.
 
 **Request:**
 
@@ -850,12 +850,13 @@ Create a folder in the vault, including missing parents.
 ```json
 {
   "success": true,
+  "created": true,
   "path": "Projects/2026",
   "message": "Successfully created folder: Projects/2026"
 }
 ```
 
-**Refused:** the vault root, dot folders and restricted names (`.obsidian`, `.git`, `node_modules`), a path that is an existing file, and a name that differs only in case from an existing sibling (for example `projects` next to `Projects`), because case-only names break sync on case-insensitive devices.
+**Refused:** the vault root, dot folders and restricted names (`.obsidian`, `.git`, `node_modules`), a path that is an existing file, and a name that differs only in case from an existing sibling (for example `projects` next to `Projects`), because case-only names break sync on case-insensitive devices. A symlinked parent that resolves into a restricted folder is refused too.
 
 ### `delete_folder`
 
@@ -889,7 +890,7 @@ Delete a folder from the vault (requires confirmation for safety). By default on
 - `none` (default): permanently remove an empty folder
 - `local`: move the folder to `.trash` inside the vault, preserving folder structure
 
-**Recursive:** `recursive: true` deletes a non-empty folder with everything inside and is accepted only together with `trashMode: "local"`, so a non-empty folder is only ever moved to the vault trash, never erased permanently. `trashMode: "system"` is not supported for folders. The vault root, dot folders, and paths outside the vault are refused.
+**Recursive:** `recursive: true` deletes a non-empty folder with everything inside and is accepted only together with `trashMode: "local"`, so a non-empty folder is only ever moved to the vault trash, never erased permanently. `trashMode: "system"` is not supported for folders, and symbolic links are refused. The vault root, dot folders, and paths outside the vault are refused.
 
 **Confirmation:** `confirmPath` must exactly match `path` before deletion proceeds.
 

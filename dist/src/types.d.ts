@@ -96,6 +96,8 @@ export interface FolderResult {
     success: boolean;
     path: string;
     message: string;
+    /** create_folder only: false when the folder already existed. */
+    created?: boolean;
 }
 export interface MoveResult {
     success: boolean;

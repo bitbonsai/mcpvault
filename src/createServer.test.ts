@@ -156,9 +156,17 @@ test("create_folder and delete_folder work through the server", async () => {
     const createdBody = JSON.parse((created.content as any)[0].text);
     expect(createdBody).toEqual({
       success: true,
+      created: true,
       path: "Projects/2026",
       message: "Successfully created folder: Projects/2026",
     });
+
+    const again = await client.callTool({ name: "create_folder", arguments: { path: "Projects/2026" } });
+    expect(again.isError).toBeFalsy();
+    expect(JSON.parse((again.content as any)[0].text).created).toBe(false);
+
+    const root = await client.callTool({ name: "delete_folder", arguments: { path: ".", confirmPath: "." } });
+    expect(root.isError).toBe(true);
 
     const listing = await client.callTool({ name: "list_directory", arguments: { path: "Projects" } });
     expect(JSON.parse((listing.content as any)[0].text).dirs).toEqual(["2026"]);

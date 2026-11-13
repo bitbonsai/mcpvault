@@ -2437,12 +2437,13 @@ describe("createFolder", () => {
     expect(result.message).toContain("Path traversal not allowed");
   });
 
-  test("reports an existing folder without failing the filesystem", async () => {
+  test("is idempotent for an existing folder", async () => {
     await mkdir(join(testVaultPath, "Existing"));
 
     const result = await fileSystem.createFolder({ path: "Existing" });
 
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    expect(result.created).toBe(false);
     expect(result.message).toContain("Folder already exists: Existing");
   });
 
@@ -2653,5 +2654,84 @@ describe("deleteFolder", () => {
 
     expect(result.success).toBe(false);
     expect(result.message).toContain("Folder not found: Missing");
+  });
+});
+
+describe("createFolder review fixes", () => {
+  test("refuses dot segments, which the path filter would otherwise accept as the vault root", async () => {
+    for (const path of [".", "./", "a/./b"]) {
+      const result = await fileSystem.createFolder({ path });
+      expect(result.success, path).toBe(false);
+    }
+    expect(await readdir(testVaultPath)).toEqual([]);
+  });
+
+  test("refuses creating through a symlink into a restricted folder", async () => {
+    await mkdir(join(testVaultPath, ".obsidian"));
+    await symlink(join(testVaultPath, ".obsidian"), join(testVaultPath, "config-link"));
+    const result = await fileSystem.createFolder({ path: "config-link/plugins" });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("restricted");
+    expect(await readdir(join(testVaultPath, ".obsidian"))).toEqual([]);
+  });
+
+  test("refuses creating through a symlink that leaves the vault", async () => {
+    const outside = await mkdtemp(join(tmpdir(), "mcpvault-outside-"));
+    try {
+      await symlink(outside, join(testVaultPath, "escape"));
+      const result = await fileSystem.createFolder({ path: "escape/new" });
+      expect(result.success).toBe(false);
+      expect(await readdir(outside)).toEqual([]);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("deleteFolder review fixes", () => {
+  test.each(["", "/", "."])("refuses the vault root (%j)", async (path) => {
+    const result = await fileSystem.deleteFolder({ path, confirmPath: path });
+    expect(result.success).toBe(false);
+  });
+
+
+  test("refuses a non-empty folder without recursive and names hidden entries", async () => {
+    await mkdir(join(testVaultPath, "Full"));
+    await writeFile(join(testVaultPath, "Full/.DS_Store"), "");
+    const result = await fileSystem.deleteFolder({ path: "Full", confirmPath: "Full" });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Folder is not empty: Full (1 entries, including hidden: .DS_Store)");
+  });
+
+  test("rejects a non-boolean recursive flag instead of treating it as truthy", async () => {
+    await mkdir(join(testVaultPath, "Full"));
+    await writeFile(join(testVaultPath, "Full/n.md"), "x");
+    const result = await fileSystem.deleteFolder({ path: "Full", confirmPath: "Full", recursive: "false" as any, trashMode: "local" });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Invalid recursive value");
+    expect(await readFile(join(testVaultPath, "Full/n.md"), "utf8")).toBe("x");
+  });
+
+  test("refuses a file, a missing folder and a symbolic link", async () => {
+    await writeFile(join(testVaultPath, "note.md"), "x");
+    await mkdir(join(testVaultPath, "real"));
+    await symlink(join(testVaultPath, "real"), join(testVaultPath, "link"));
+
+    const file = await fileSystem.deleteFolder({ path: "note.md", confirmPath: "note.md" });
+    expect(file.message).toContain("is not a folder");
+    const missing = await fileSystem.deleteFolder({ path: "nope", confirmPath: "nope" });
+    expect(missing.message).toContain("Folder not found");
+    const link = await fileSystem.deleteFolder({ path: "link", confirmPath: "link", recursive: true, trashMode: "local" });
+    expect(link.success).toBe(false);
+    expect(link.message).toContain("symbolic link");
+    expect((await readdir(testVaultPath)).sort()).toEqual(["link", "note.md", "real"]);
+  });
+
+  test("refuses deleting through a symlink into a restricted folder", async () => {
+    await mkdir(join(testVaultPath, ".obsidian/plugins"), { recursive: true });
+    await symlink(join(testVaultPath, ".obsidian"), join(testVaultPath, "config-link"));
+    const result = await fileSystem.deleteFolder({ path: "config-link/plugins", confirmPath: "config-link/plugins" });
+    expect(result.success).toBe(false);
+    expect(await readdir(join(testVaultPath, ".obsidian"))).toEqual(["plugins"]);
   });
 });
