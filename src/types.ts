@@ -87,6 +87,8 @@ export interface MoveNoteParams {
   oldPath: string;
   newPath: string;
   overwrite?: boolean;
+  /** Rewrite [[wikilinks]] in other notes to the new name (default: false). */
+  updateLinks?: boolean;
 }
 
 export interface MoveFileParams {
@@ -102,10 +104,17 @@ export interface MoveResult {
   oldPath: string;
   newPath: string;
   message: string;
-  /** Number of [[wikilink]] occurrences rewritten to the new name (move_note only). */
+  /** Number of [[wikilink]] occurrences rewritten to the new name (move_note with updateLinks only). */
   linksUpdated?: number;
-  /** Vault-relative paths of the notes whose links were rewritten (move_note only). */
+  /** Vault-relative paths of the notes whose links were rewritten (move_note with updateLinks only). */
   notesUpdated?: string[];
+  /** Notes that still link to the old name and were not changed (move_note without updateLinks only). */
+  linkedFrom?: string[];
+  /**
+   * Notes with bare [[Name]] links that were left alone because another note
+   * in the vault still has the old basename, so the link is ambiguous (move_note only).
+   */
+  ambiguousLinksSkipped?: string[];
 }
 
 // Batch read types

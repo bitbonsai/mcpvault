@@ -55,9 +55,9 @@ Auto-creates parent directories recursively. In append/prepend, creates the file
 
 ## move_note
 
-Text-aware move for markdown files. Reads source as UTF-8, writes to destination with `wx` flag (fails if target exists unless `overwrite: true`), then deletes source. No confirmation parameters needed. It does not rewrite wikilinks in other notes; follow the Safe Note Rename Workflow in SKILL.md to discover, repair, and verify backlinks explicitly.
+Text-aware move for markdown files. Reads source as UTF-8, writes to destination with `wx` flag (fails if target exists unless `overwrite: true`), then deletes source. No confirmation parameters needed. By default it does not rewrite wikilinks in other notes and returns `linkedFrom`, the notes that still link to the old name; use it as a starting list for the Safe Note Rename Workflow in SKILL.md. With `updateLinks: true` it rewrites those links itself and returns `linksUpdated` and `notesUpdated`. Bare `[[Name]]` links are never rewritten when another note still has the old basename; those notes are listed in `ambiguousLinksSkipped`.
 
-**Response:** `{ "success": bool, "oldPath": str, "newPath": str, "message": str }`
+**Response:** `{ "success": bool, "oldPath": str, "newPath": str, "message": str, "linkedFrom"?: str[], "linksUpdated"?: number, "notesUpdated"?: str[], "ambiguousLinksSkipped"?: str[] }`
 
 ## move_file
 

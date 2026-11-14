@@ -591,6 +591,7 @@ export class FileSystemService {
     }
     async moveNote(params) {
         const { overwrite = false } = params;
+        const updateLinks = params.updateLinks === true;
         const oldPath = this.normalizePath(params.oldPath);
         const newPath = this.normalizePath(params.newPath);
         if (!this.pathFilter.isAllowed(oldPath)) {
@@ -692,21 +693,35 @@ export class FileSystemService {
             }
             // Delete the source file
             await unlink(oldFullPath);
-            // Point [[wikilinks]] in the rest of the vault at the new name
-            const links = await this.updateWikiLinksAfterMove(oldPath, newPath);
-            const linkSummary = links.linksUpdated === 0
-                ? 'No wiki links needed updating.'
-                : `Updated ${links.linksUpdated} wiki link${links.linksUpdated === 1 ? '' : 's'} in ${links.notesUpdated.length} note${links.notesUpdated.length === 1 ? '' : 's'}.`;
+            // Find [[wikilinks]] to the old name; rewrite them only when asked.
+            const links = await this.updateWikiLinksAfterMove(oldPath, newPath, updateLinks);
+            const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+            let linkSummary;
+            if (updateLinks) {
+                linkSummary = links.linksUpdated === 0
+                    ? 'No wiki links needed updating.'
+                    : `Updated ${plural(links.linksUpdated, 'wiki link')} in ${plural(links.notesUpdated.length, 'note')}.`;
+            }
+            else {
+                linkSummary = links.notesUpdated.length === 0
+                    ? 'No other notes link to the old name.'
+                    : `${plural(links.notesUpdated.length, 'note')} still link to the old name (see linkedFrom); call with updateLinks=true to rewrite them.`;
+            }
+            const ambiguousSummary = links.ambiguous.length === 0
+                ? ''
+                : ` Bare [[${links.oldName}]] links were left alone in ${plural(links.ambiguous.length, 'note')} because another note is still named ${links.oldName} (see ambiguousLinksSkipped).`;
             const failureSummary = links.failures.length === 0
                 ? ''
-                : ` Could not update links in: ${links.failures.join('; ')}`;
+                : ` Could not ${updateLinks ? 'update' : 'check'} links in: ${links.failures.join('; ')}`;
             return {
                 success: true,
                 oldPath,
                 newPath,
-                message: `Successfully moved note from ${oldPath} to ${newPath}. ${linkSummary}${failureSummary}`,
-                linksUpdated: links.linksUpdated,
-                notesUpdated: links.notesUpdated
+                message: `Successfully moved note from ${oldPath} to ${newPath}. ${linkSummary}${ambiguousSummary}${failureSummary}`,
+                ...(updateLinks
+                    ? { linksUpdated: links.linksUpdated, notesUpdated: links.notesUpdated }
+                    : { linkedFrom: links.notesUpdated }),
+                ...(links.ambiguous.length > 0 ? { ambiguousLinksSkipped: links.ambiguous } : {})
             };
         }
         catch (error) {
@@ -728,18 +743,34 @@ export class FileSystemService {
      * without the .md extension. Aliases, headings and the embed marker are kept.
      * Only notes that changed are written back, with their bytes otherwise
      * untouched, so line endings are preserved.
+     *
+     * With write=false nothing is written: notesUpdated then lists the notes
+     * that would change (reported as linkedFrom). Bare targets are skipped when
+     * another note still has the old basename, since [[Name]] may mean that
+     * note; those notes are reported in `ambiguous`. A link whose rewrite would
+     * be identical (same basename, new folder) does not count as a change.
      */
-    async updateWikiLinksAfterMove(oldPath, newPath) {
+    async updateWikiLinksAfterMove(oldPath, newPath, write) {
         const stripMd = (p) => p.endsWith('.md') ? p.slice(0, -3) : p;
         const basename = (p) => p.slice(p.lastIndexOf('/') + 1);
-        const targets = new Map();
-        targets.set(stripMd(basename(oldPath)), stripMd(basename(newPath)));
-        targets.set(stripMd(oldPath), stripMd(newPath));
+        const oldName = stripMd(basename(oldPath));
+        const bareTargets = new Map();
+        const pathTargets = new Map();
+        bareTargets.set(oldName, stripMd(basename(newPath)));
+        pathTargets.set(stripMd(oldPath), stripMd(newPath));
         if (oldPath.endsWith('.md')) {
-            targets.set(basename(oldPath), stripMd(basename(newPath)));
-            targets.set(oldPath, stripMd(newPath));
+            bareTargets.set(basename(oldPath), stripMd(basename(newPath)));
+            pathTargets.set(oldPath, stripMd(newPath));
         }
-        const result = { linksUpdated: 0, notesUpdated: [], failures: [] };
+        const result = {
+            linksUpdated: 0,
+            notesUpdated: [],
+            ambiguous: [],
+            failures: [],
+            oldName
+        };
+        // Collect candidate notes first so ambiguity is known before any rewrite.
+        const notes = [];
         const scan = async (dirPath, relativePath = '') => {
             let entries;
             try {
@@ -758,34 +789,55 @@ export class FileSystemService {
                     await scan(fullEntryPath, entryRelativePath);
                 }
                 else if (entry.isFile() && this.pathFilter.isAllowed(entryRelativePath)) {
-                    if (entryRelativePath === newPath)
-                        continue;
-                    try {
-                        const content = await readFile(fullEntryPath, 'utf-8');
-                        let count = 0;
-                        // embed marker, target, optional #heading, optional |alias
-                        const linkPattern = /(!?)\[\[([^\[\]|#]+)((?:#[^\[\]|]*)?)((?:\|[^\[\]]*)?)\]\]/g;
-                        const updated = content.replace(linkPattern, (match, embed, target, heading, alias) => {
-                            const replacement = targets.get(target);
-                            if (replacement === undefined)
-                                return match;
-                            count++;
-                            return `${embed}[[${replacement}${heading}${alias}]]`;
-                        });
-                        if (count === 0)
-                            continue;
-                        await this.withPathLock(entryRelativePath, (fullPath) => this.atomicWrite(fullPath, updated));
-                        result.linksUpdated += count;
-                        result.notesUpdated.push(entryRelativePath);
-                    }
-                    catch (error) {
-                        result.failures.push(`${entryRelativePath} (${error instanceof Error ? error.message : 'Unknown error'})`);
-                    }
+                    notes.push({ relativePath: entryRelativePath, fullPath: fullEntryPath });
                 }
             }
         };
         await scan(this.vaultPath);
+        // Another note that still answers to the old basename makes [[Name]] ambiguous.
+        const bareIsAmbiguous = notes.some((note) => note.relativePath !== newPath && stripMd(basename(note.relativePath)) === oldName);
+        for (const note of notes) {
+            if (note.relativePath === newPath)
+                continue;
+            try {
+                const content = await readFile(note.fullPath, 'utf-8');
+                let count = 0;
+                let skipped = false;
+                // embed marker, target, optional #heading, optional |alias
+                const linkPattern = /(!?)\[\[([^\[\]|#]+)((?:#[^\[\]|]*)?)((?:\|[^\[\]]*)?)\]\]/g;
+                const updated = content.replace(linkPattern, (match, embed, target, heading, alias) => {
+                    let replacement = pathTargets.get(target);
+                    if (replacement === undefined) {
+                        replacement = bareTargets.get(target);
+                        if (replacement !== undefined && bareIsAmbiguous) {
+                            skipped = true;
+                            return match;
+                        }
+                    }
+                    if (replacement === undefined)
+                        return match;
+                    const rewritten = `${embed}[[${replacement}${heading}${alias}]]`;
+                    if (rewritten === match)
+                        return match;
+                    count++;
+                    return rewritten;
+                });
+                if (skipped)
+                    result.ambiguous.push(note.relativePath);
+                if (count === 0)
+                    continue;
+                if (write) {
+                    await this.withPathLock(note.relativePath, (fullPath) => this.atomicWrite(fullPath, updated));
+                }
+                result.linksUpdated += count;
+                result.notesUpdated.push(note.relativePath);
+            }
+            catch (error) {
+                result.failures.push(`${note.relativePath} (${error instanceof Error ? error.message : 'Unknown error'})`);
+            }
+        }
         result.notesUpdated.sort();
+        result.ambiguous.sort();
         return result;
     }
     async moveFile(params) {

@@ -48,7 +48,7 @@ Practical prompts you can try with your AI assistant and MCPVault.
 | list_directory | List files and folders in the vault (includes non-note filenames) |
 | delete_note | Delete a note with optional soft-delete: permanent, vault trash, or system trash |
 | search_notes | Search by note name or content across the vault |
-| move_note | Move or rename a note |
+| move_note | Move or rename a note; lists notes that link to the old name, and rewrites those links with `updateLinks: true` |
 | move_file | Move or rename any file (binary-safe, file-only, requires path confirmation) |
 | read_multiple_notes | Batch read up to 10 notes |
 | update_frontmatter | Validate and update YAML frontmatter |

@@ -2484,7 +2484,7 @@ describe("writeNote append/prepend joins on a line boundary (#273)", () => {
 // MOVE_NOTE WIKI LINK UPDATES (#274)
 // ============================================================================
 
-describe("moveNote updates wiki links in other notes (#274)", () => {
+describe("moveNote wiki links in other notes (#274)", () => {
   test("rewrites every link form that targets the moved note and reports counts", async () => {
     await mkdir(join(testVaultPath, "notes"), { recursive: true });
     await mkdir(join(testVaultPath, "deep/nested"), { recursive: true });
@@ -2503,7 +2503,7 @@ describe("moveNote updates wiki links in other notes (#274)", () => {
     await writeFile(join(testVaultPath, "deep/nested/other.md"), "See [[Old|old]] and [[Older]].\n");
     await writeFile(join(testVaultPath, "untouched.md"), "Only [[Older]] and [[Old-thing]] here.\n");
 
-    const result = await fileSystem.moveNote({ oldPath: "notes/Old.md", newPath: "archive/New.md" });
+    const result = await fileSystem.moveNote({ oldPath: "notes/Old.md", newPath: "archive/New.md", updateLinks: true });
 
     expect(result.success).toBe(true);
     expect(result.linksUpdated).toBe(8);
@@ -2530,7 +2530,7 @@ describe("moveNote updates wiki links in other notes (#274)", () => {
     await writeFile(join(testVaultPath, "Old.md"), "# Old\n");
     await writeFile(join(testVaultPath, "ref.md"), "[[old]] and [[OLD]] and [[Old]]\n");
 
-    const result = await fileSystem.moveNote({ oldPath: "Old.md", newPath: "New.md" });
+    const result = await fileSystem.moveNote({ oldPath: "Old.md", newPath: "New.md", updateLinks: true });
 
     expect(result.success).toBe(true);
     expect(result.linksUpdated).toBe(1);
@@ -2543,7 +2543,7 @@ describe("moveNote updates wiki links in other notes (#274)", () => {
     await writeFile(join(testVaultPath, "plain.md"), "No links\n");
     const plainBefore = (await (await import("fs/promises")).stat(join(testVaultPath, "plain.md"))).mtimeMs;
 
-    const result = await fileSystem.moveNote({ oldPath: "Old.md", newPath: "New.md" });
+    const result = await fileSystem.moveNote({ oldPath: "Old.md", newPath: "New.md", updateLinks: true });
 
     expect(result.success).toBe(true);
     expect(result.linksUpdated).toBe(1);
@@ -2556,12 +2556,89 @@ describe("moveNote updates wiki links in other notes (#274)", () => {
     await writeFile(join(testVaultPath, "Old.md"), "# Old\n");
     await writeFile(join(testVaultPath, "ref.md"), "[[Another]]\n");
 
-    const result = await fileSystem.moveNote({ oldPath: "Old.md", newPath: "New.md" });
+    const result = await fileSystem.moveNote({ oldPath: "Old.md", newPath: "New.md", updateLinks: true });
 
     expect(result.success).toBe(true);
     expect(result.linksUpdated).toBe(0);
     expect(result.notesUpdated).toEqual([]);
     expect(await readFile(join(testVaultPath, "ref.md"), "utf-8")).toBe("[[Another]]\n");
+  });
+  test("does not touch other notes by default and reports linkedFrom", async () => {
+    await writeFile(join(testVaultPath, "Old.md"), "# Old\n");
+    await writeFile(join(testVaultPath, "a.md"), "See [[Old]].\n");
+    await writeFile(join(testVaultPath, "b.md"), "Embed ![[Old#Part|x]].\n");
+    await writeFile(join(testVaultPath, "c.md"), "Unrelated [[Older]].\n");
+
+    const result = await fileSystem.moveNote({ oldPath: "Old.md", newPath: "New.md" });
+
+    expect(result.success).toBe(true);
+    expect(result.linkedFrom).toEqual(["a.md", "b.md"]);
+    expect(result.linksUpdated).toBeUndefined();
+    expect(result.notesUpdated).toBeUndefined();
+    expect(result.message).toContain("2 notes still link to the old name");
+    expect(result.message).toContain("updateLinks=true");
+    expect(await readFile(join(testVaultPath, "a.md"), "utf-8")).toBe("See [[Old]].\n");
+    expect(await readFile(join(testVaultPath, "b.md"), "utf-8")).toBe("Embed ![[Old#Part|x]].\n");
+  });
+
+  test("treats a non-boolean updateLinks as false", async () => {
+    await writeFile(join(testVaultPath, "Old.md"), "# Old\n");
+    await writeFile(join(testVaultPath, "a.md"), "See [[Old]].\n");
+
+    const result = await fileSystem.moveNote({ oldPath: "Old.md", newPath: "New.md", updateLinks: "true" as any });
+
+    expect(result.linkedFrom).toEqual(["a.md"]);
+    expect(await readFile(join(testVaultPath, "a.md"), "utf-8")).toBe("See [[Old]].\n");
+  });
+
+  test("leaves bare links alone when another note still has the old basename", async () => {
+    await mkdir(join(testVaultPath, "projects"), { recursive: true });
+    await mkdir(join(testVaultPath, "archive"), { recursive: true });
+    await writeFile(join(testVaultPath, "projects/Plan.md"), "# Project plan\n");
+    await writeFile(join(testVaultPath, "archive/Plan.md"), "# Archived plan\n");
+    await writeFile(join(testVaultPath, "ref.md"), "Bare [[Plan]] and path [[projects/Plan|p]] and ![[projects/Plan.md]].\n");
+    await writeFile(join(testVaultPath, "only-bare.md"), "Just [[Plan#Goals]].\n");
+
+    const result = await fileSystem.moveNote({ oldPath: "projects/Plan.md", newPath: "projects/Roadmap.md", updateLinks: true });
+
+    expect(result.success).toBe(true);
+    expect(result.linksUpdated).toBe(2);
+    expect(result.notesUpdated).toEqual(["ref.md"]);
+    expect(result.ambiguousLinksSkipped).toEqual(["only-bare.md", "ref.md"]);
+    expect(result.message).toContain("another note is still named Plan");
+    expect(await readFile(join(testVaultPath, "ref.md"), "utf-8"))
+      .toBe("Bare [[Plan]] and path [[projects/Roadmap|p]] and ![[projects/Roadmap]].\n");
+    expect(await readFile(join(testVaultPath, "only-bare.md"), "utf-8")).toBe("Just [[Plan#Goals]].\n");
+  });
+
+  test("reports ambiguous bare links without updateLinks too", async () => {
+    await mkdir(join(testVaultPath, "a"), { recursive: true });
+    await mkdir(join(testVaultPath, "b"), { recursive: true });
+    await writeFile(join(testVaultPath, "a/Plan.md"), "# A\n");
+    await writeFile(join(testVaultPath, "b/Plan.md"), "# B\n");
+    await writeFile(join(testVaultPath, "ref.md"), "[[Plan]] and [[a/Plan]]\n");
+
+    const result = await fileSystem.moveNote({ oldPath: "a/Plan.md", newPath: "a/Other.md" });
+
+    expect(result.linkedFrom).toEqual(["ref.md"]);
+    expect(result.ambiguousLinksSkipped).toEqual(["ref.md"]);
+    expect(await readFile(join(testVaultPath, "ref.md"), "utf-8")).toBe("[[Plan]] and [[a/Plan]]\n");
+  });
+
+  test("does not rewrite or report a bare link that would stay the same", async () => {
+    await mkdir(join(testVaultPath, "inbox"), { recursive: true });
+    await writeFile(join(testVaultPath, "inbox/Idea.md"), "# Idea\n");
+    await writeFile(join(testVaultPath, "ref.md"), "See [[Idea]].\n");
+    const before = (await (await import("fs/promises")).stat(join(testVaultPath, "ref.md"))).mtimeMs;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const result = await fileSystem.moveNote({ oldPath: "inbox/Idea.md", newPath: "done/Idea.md", updateLinks: true });
+
+    expect(result.success).toBe(true);
+    expect(result.linksUpdated).toBe(0);
+    expect(result.notesUpdated).toEqual([]);
+    expect(await readFile(join(testVaultPath, "ref.md"), "utf-8")).toBe("See [[Idea]].\n");
+    expect((await (await import("fs/promises")).stat(join(testVaultPath, "ref.md"))).mtimeMs).toBe(before);
   });
 });
 

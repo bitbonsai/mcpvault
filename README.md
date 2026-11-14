@@ -774,7 +774,11 @@ Search for notes in the vault by content or frontmatter with multi-word matching
 
 Move or rename a note in the vault (`.md`, `.markdown`, `.txt`, `.base`, `.canvas`).
 
-After the move, `[[wikilinks]]` in other notes that point at the old name are rewritten to the new one: `[[Note]]`, `[[Note|alias]]`, `[[Note#heading]]`, `![[Note]]` embeds and path-qualified `[[folder/Note]]` or `[[folder/Note.md]]` links. Bare links receive the new basename and path-qualified links the new vault-relative path, both without `.md`; aliases, headings and the embed marker are kept. Only exact, case-sensitive targets match, so `[[Notes]]` or `[[Note-2]]` stay untouched. The result lists the rewritten notes in `notesUpdated` and the number of links in `linksUpdated`.
+By default other notes are not changed. The result lists the notes that still link to the old name in `linkedFrom`, so the caller can decide what to do.
+
+With `updateLinks: true`, those `[[wikilinks]]` are rewritten to the new name: `[[Note]]`, `[[Note|alias]]`, `[[Note#heading]]`, `![[Note]]` embeds and path-qualified `[[folder/Note]]` or `[[folder/Note.md]]` links. Bare links receive the new basename and path-qualified links the new vault-relative path, both without `.md`; aliases, headings and the embed marker are kept. Only exact, case-sensitive targets match, so `[[Notes]]` or `[[Note-2]]` stay untouched. A link whose rewrite would be identical (same name, new folder) is not counted and its note is not written. The result lists the rewritten notes in `notesUpdated` and the number of links in `linksUpdated`.
+
+If another note in the vault still has the old basename, a bare `[[Note]]` may mean that note, so bare links are left alone in both modes; only path-qualified links are rewritten. Notes with skipped bare links are listed in `ambiguousLinksSkipped`.
 
 **Request:**
 
@@ -789,7 +793,19 @@ After the move, `[[wikilinks]]` in other notes that point at the old name are re
 }
 ```
 
-**Response:**
+**Response (default, other notes unchanged):**
+
+```json
+{
+  "success": true,
+  "oldPath": "drafts/article.md",
+  "newPath": "published/article.md",
+  "message": "Successfully moved note from drafts/article.md to published/article.md. 2 notes still link to the old name (see linkedFrom); call with updateLinks=true to rewrite them.",
+  "linkedFrom": ["index.md", "reading/queue.md"]
+}
+```
+
+**Response (with `"updateLinks": true`):**
 
 ```json
 {

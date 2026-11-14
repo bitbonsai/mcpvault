@@ -52,6 +52,12 @@ export declare class FileSystemService {
      * without the .md extension. Aliases, headings and the embed marker are kept.
      * Only notes that changed are written back, with their bytes otherwise
      * untouched, so line endings are preserved.
+     *
+     * With write=false nothing is written: notesUpdated then lists the notes
+     * that would change (reported as linkedFrom). Bare targets are skipped when
+     * another note still has the old basename, since [[Name]] may mean that
+     * note; those notes are reported in `ambiguous`. A link whose rewrite would
+     * be identical (same basename, new folder) does not count as a change.
      */
     private updateWikiLinksAfterMove;
     moveFile(params: MoveFileParams): Promise<MoveResult>;
