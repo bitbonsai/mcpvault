@@ -1,4 +1,4 @@
-import { join, resolve, relative, dirname } from 'path';
+import { join, resolve, relative, dirname, sep } from 'path';
 import { homedir } from 'os';
 import { readdir, stat, readFile, writeFile, open, unlink, mkdir, access, rename, copyFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -211,6 +211,77 @@ export class FileSystemService {
             throw error;
         }
     }
+    toVaultRelative(fullPath) {
+        return relative(this.vaultPath, fullPath).split(sep).join('/');
+    }
+    /**
+     * True when the vault holds at least one note (a file the path filter
+     * accepts, anywhere outside filtered paths such as .obsidian and .trash),
+     * optionally only `within` a folder and/or ignoring the subtree `excluding`.
+     * Both are absolute paths inside the vault. The scan stops at the first note
+     * found, so the usual cost is a single readdir. Obsidian Sync on mobile
+     * pauses itself on an empty vault, so the delete tools keep the last note.
+     */
+    async hasNote(options = {}) {
+        const excluding = options.excluding === undefined ? undefined : this.toVaultRelative(options.excluding);
+        const scan = async (dirPath, relativePath) => {
+            const entries = await readdir(dirPath, { withFileTypes: true });
+            for (const entry of entries) {
+                const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+                if (excluding !== undefined && (entryRelativePath === excluding || entryRelativePath.startsWith(`${excluding}/`))) {
+                    continue;
+                }
+                if (entry.isDirectory()) {
+                    if (this.pathFilter.isAllowedForListing(entryRelativePath) && await scan(join(dirPath, entry.name), entryRelativePath)) {
+                        return true;
+                    }
+                }
+                else if (entry.isFile() && this.pathFilter.isAllowed(entryRelativePath)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        const start = options.within ?? this.vaultPath;
+        return scan(start, this.toVaultRelative(start));
+    }
+    /**
+     * Name of an existing entry that differs only in case from a segment of a
+     * path about to be created, or undefined. Walks the segments from the vault
+     * root and stops at the first one that does not exist yet (nothing below it
+     * can clash); a segment that exists with the exact name never clashes.
+     * `ignore` is the absolute path of a move's source, which may match its own
+     * new name. Case-only names lose one of the two files on case-insensitive
+     * devices, so the write and move tools refuse them.
+     */
+    async findCaseOnlyClash(fullPath, ignore) {
+        let currentDir = this.vaultPath;
+        for (const segment of this.toVaultRelative(fullPath).split('/').filter(Boolean)) {
+            let entries;
+            try {
+                entries = await readdir(currentDir);
+            }
+            catch (error) {
+                const code = error instanceof Error && 'code' in error ? error.code : undefined;
+                if (code === 'ENOENT' || code === 'ENOTDIR')
+                    return undefined;
+                throw error;
+            }
+            if (!entries.includes(segment)) {
+                const lower = segment.toLowerCase();
+                const existing = entries.find((entry) => entry.toLowerCase() === lower);
+                if (existing !== undefined && join(currentDir, existing) !== ignore) {
+                    return existing;
+                }
+                return undefined;
+            }
+            currentDir = join(currentDir, segment);
+        }
+        return undefined;
+    }
+    caseOnlyClashMessage(existing, path) {
+        return `Name differs only in case from the existing "${existing}": ${path}. Case-only names break sync on case-insensitive devices; choose another name.`;
+    }
     async readNote(path) {
         path = this.normalizePath(path);
         const fullPath = this.resolvePath(path);
@@ -262,6 +333,11 @@ export class FileSystemService {
         // and replace the file atomically so a torn/partial file is never observed.
         return this.withPathLock(path, async (fullPath) => {
             try {
+                // Only a new name can clash; an existing exact path is updated as before.
+                const clash = await this.findCaseOnlyClash(fullPath);
+                if (clash !== undefined) {
+                    throw new Error(this.caseOnlyClashMessage(clash, path));
+                }
                 let finalContent;
                 if (mode === 'overwrite') {
                     // Original behavior - replace entire content
@@ -507,6 +583,16 @@ export class FileSystemService {
                     message: `Cannot delete: ${path} is not a file`
                 };
             }
+            // A missing file is reported as "File not found" by the catch below.
+            await access(fullPath, constants.F_OK);
+            // Keep the last note: Obsidian Sync on mobile pauses itself on an empty vault.
+            if (!(await this.hasNote({ excluding: fullPath }))) {
+                return {
+                    success: false,
+                    path: path,
+                    message: `Refused: deleting ${path} would leave the vault with no notes. Obsidian Sync on mobile pauses itself on an empty vault; keep at least one note.`
+                };
+            }
             if (trashMode === 'local') {
                 const trashDir = join(this.vaultPath, '.trash');
                 const trashPath = join(trashDir, path);
@@ -634,6 +720,15 @@ export class FileSystemService {
                 }
                 throw error;
             }
+            const clash = await this.findCaseOnlyClash(newFullPath, oldFullPath);
+            if (clash !== undefined) {
+                return {
+                    success: false,
+                    oldPath,
+                    newPath,
+                    message: this.caseOnlyClashMessage(clash, newPath)
+                };
+            }
             // Create directories if needed
             await mkdir(dirname(newFullPath), { recursive: true });
             // Write to new location, checking for existing file atomically if !overwrite
@@ -751,6 +846,15 @@ export class FileSystemService {
             };
         }
         try {
+            const clash = await this.findCaseOnlyClash(newFullPath, oldFullPath);
+            if (clash !== undefined) {
+                return {
+                    success: false,
+                    oldPath,
+                    newPath,
+                    message: this.caseOnlyClashMessage(clash, newPath)
+                };
+            }
             if (!overwrite) {
                 try {
                     await access(newFullPath, constants.F_OK);
