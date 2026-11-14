@@ -16,6 +16,7 @@ export declare class FileSystemService {
     private frontmatterHandler;
     private pathFilter;
     private writeChains;
+    private lexicalVaultPath;
     constructor(vaultPath: string, pathFilter?: PathFilter, frontmatterHandler?: FrontmatterHandler);
     /**
      * Normalize an incoming path to be vault-relative. Strips leading slashes

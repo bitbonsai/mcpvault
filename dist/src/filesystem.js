@@ -57,9 +57,13 @@ export class FileSystemService {
     pathFilter;
     // shortcut: instance-local locks only, add cross-process coordination if shared-vault writers need it.
     writeChains = new Map();
+    // The vault path as the user wrote it, resolved but not through symlinks.
+    // Absolute paths built from it must still be recognized as inside the vault.
+    lexicalVaultPath;
     constructor(vaultPath, pathFilter, frontmatterHandler) {
         this.vaultPath = vaultPath;
         const resolved = resolve(vaultPath);
+        this.lexicalVaultPath = resolved;
         try {
             this.vaultPath = realpathSync(resolved);
         }
@@ -85,19 +89,20 @@ export class FileSystemService {
         }
         // Normalize path separators for cross-platform comparison (Windows backslashes)
         const normalized = p.replace(/\\/g, '/');
-        const vaultPrefix = this.vaultPath.replace(/\\/g, '/');
         // Strip vault path prefix before stripping leading slash, so absolute paths
-        // like "/Users/me/vault/wiki/note.md" are handled correctly.
-        if (normalized.startsWith(vaultPrefix + '/')) {
-            p = normalized.slice(vaultPrefix.length + 1);
+        // like "/Users/me/vault/wiki/note.md" are handled correctly. Check both the
+        // real path and the path as given, which differ when the vault or one of
+        // its parents is a symlink (e.g. /var -> /private/var on macOS).
+        for (const vault of [this.vaultPath, this.lexicalVaultPath]) {
+            const vaultPrefix = vault.replace(/\\/g, '/');
+            if (normalized.startsWith(vaultPrefix + '/')) {
+                return normalized.slice(vaultPrefix.length + 1);
+            }
+            if (normalized === vaultPrefix) {
+                return '';
+            }
         }
-        else if (normalized === vaultPrefix) {
-            p = '';
-        }
-        else if (p.startsWith('/')) {
-            p = p.slice(1);
-        }
-        return p;
+        return p.startsWith('/') ? p.slice(1) : p;
     }
     resolvePath(relativePath, followSymlinks = false) {
         const normalizedPath = this.normalizePath(relativePath);
