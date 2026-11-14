@@ -578,7 +578,13 @@ export class FileSystemService {
     normalizeFolderPath(inputPath) {
         if (typeof inputPath !== 'string')
             return '';
-        return this.normalizePath(inputPath).replace(/\/+$/, '');
+        // Trim trailing slashes with a loop: /\/+$/ backtracks polynomially on
+        // input like "a////…b" (CodeQL js/polynomial-redos).
+        const path = this.normalizePath(inputPath);
+        let end = path.length;
+        while (end > 0 && path[end - 1] === '/')
+            end--;
+        return path.slice(0, end);
     }
     /**
      * Folder paths may not contain "." or ".." segments: the path filter's

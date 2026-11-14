@@ -2689,6 +2689,16 @@ describe("createFolder review fixes", () => {
 });
 
 describe("deleteFolder review fixes", () => {
+  test("handles long runs of slashes in linear time", async () => {
+    const slashes = "/".repeat(100_000);
+    const started = Date.now();
+    const result = await fileSystem.deleteFolder({ path: `a${slashes}b`, confirmPath: `a${slashes}c` });
+    const trailing = await fileSystem.createFolder({ path: `Trail${slashes}` });
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(result.success).toBe(false);
+    expect(trailing).toMatchObject({ success: true, path: "Trail" });
+  });
+
   test.each(["", "/", "."])("refuses the vault root (%j)", async (path) => {
     const result = await fileSystem.deleteFolder({ path, confirmPath: path });
     expect(result.success).toBe(false);
