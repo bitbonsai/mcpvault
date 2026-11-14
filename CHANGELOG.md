@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Absolute paths now resolve when the vault path is, or sits under, a symlink. Before, a path built from the symlinked vault path was treated as relative: reads failed with `File not found`, and `write_note` created the file under a nested copy of the absolute path inside the vault.
+
 ## [0.18.3] - 2026-11-01
 
 ### Fixed

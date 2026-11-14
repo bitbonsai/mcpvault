@@ -1438,6 +1438,40 @@ test("path containing vault prefix without trailing slash is resolved correctly"
   expect(note.content).toContain("Root content.");
 });
 
+describe("vault opened through a symlink", () => {
+  let realVault: string;
+  let linkedVault: string;
+  let linkedFs: FileSystemService;
+
+  beforeEach(async () => {
+    realVault = join(testVaultPath, "real-vault");
+    linkedVault = join(testVaultPath, "linked-vault");
+    await mkdir(join(realVault, "wiki"), { recursive: true });
+    await writeFile(join(realVault, "wiki/note.md"), "# Note\n\nLinked content.");
+    await symlink(realVault, linkedVault);
+    linkedFs = new FileSystemService(linkedVault);
+  });
+
+  test("reads an absolute path built from the symlinked vault path", async () => {
+    const note = await linkedFs.readNote(linkedVault + "/wiki/note.md");
+    expect(note.content).toContain("Linked content.");
+  });
+
+  test("writes an absolute path built from the symlinked vault path in place", async () => {
+    await linkedFs.writeNote({ path: linkedVault + "/wiki/new.md", content: "# New" });
+
+    expect(await readFile(join(realVault, "wiki/new.md"), "utf-8")).toContain("# New");
+    // An unrecognized prefix turns the absolute path into a relative one and
+    // nests it inside the vault.
+    expect(await readdir(realVault)).toEqual(["wiki"]);
+  });
+
+  test("still accepts the real vault path", async () => {
+    const note = await linkedFs.readNote(linkedFs.getVaultPath() + "/wiki/note.md");
+    expect(note.content).toContain("Linked content.");
+  });
+});
+
 test("path with tilde vault prefix is resolved correctly", async () => {
   const resolvedVaultPath = fileSystem.getVaultPath();
   const home = homedir();
