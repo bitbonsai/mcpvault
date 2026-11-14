@@ -67,20 +67,6 @@ test("server registers 20 tools", async () => {
   await server.close();
 });
 
-const READ_TOOLS = [
-  "get_frontmatter",
-  "get_note_outline",
-  "get_notes_info",
-  "get_vault_stats",
-  "list_all_tags",
-  "list_directory",
-  "read_multiple_notes",
-  "read_note",
-  "read_note_lines",
-  "search_notes",
-  "wiki_link",
-];
-
 const MUTATING_TOOLS = [
   "create_folder",
   "delete_folder",
@@ -92,59 +78,6 @@ const MUTATING_TOOLS = [
   "update_frontmatter",
   "write_note",
 ];
-
-test("every tool carries annotations and mutating tools require user interaction", async () => {
-  const server = createServer(testVaultPath, { version: "1.0.0" });
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: "test-client", version: "1.0.0" });
-  await Promise.all([
-    client.connect(clientTransport),
-    server.connect(serverTransport),
-  ]);
-
-  try {
-    const { tools } = await client.listTools();
-    expect(tools).toHaveLength(20);
-    expect(tools.map((tool) => tool.name).sort()).toEqual([...READ_TOOLS, ...MUTATING_TOOLS].sort());
-
-    for (const tool of tools) {
-      expect(tool.annotations, `${tool.name} annotations`).toBeDefined();
-      expect(typeof tool.annotations?.title, `${tool.name} title`).toBe("string");
-      expect(tool.annotations?.title, `${tool.name} title`).not.toBe("");
-      expect(typeof tool.annotations?.readOnlyHint, `${tool.name} readOnlyHint`).toBe("boolean");
-      expect(tool.annotations?.openWorldHint, `${tool.name} openWorldHint`).toBe(false);
-    }
-
-    for (const name of READ_TOOLS) {
-      const tool = tools.find((candidate) => candidate.name === name)!;
-      expect(tool.annotations?.readOnlyHint, `${name} readOnlyHint`).toBe(true);
-      expect(tool.annotations?.destructiveHint, `${name} destructiveHint`).toBeUndefined();
-      expect(tool._meta?.["anthropic/requiresUserInteraction"], `${name} _meta`).toBeUndefined();
-    }
-
-    for (const name of MUTATING_TOOLS) {
-      const tool = tools.find((candidate) => candidate.name === name)!;
-      expect(tool.annotations?.readOnlyHint, `${name} readOnlyHint`).toBe(false);
-      expect(typeof tool.annotations?.destructiveHint, `${name} destructiveHint`).toBe("boolean");
-      expect(tool._meta?.["anthropic/requiresUserInteraction"], `${name} _meta`).toBe(true);
-    }
-
-    const destructive = tools
-      .filter((tool) => tool.annotations?.destructiveHint === true)
-      .map((tool) => tool.name)
-      .sort();
-    expect(destructive).toEqual(["delete_folder", "delete_note", "move_file", "move_note", "patch_note", "write_note"]);
-
-    const nonDestructiveMutations = tools
-      .filter((tool) => tool.annotations?.destructiveHint === false)
-      .map((tool) => tool.name)
-      .sort();
-    expect(nonDestructiveMutations).toEqual(["create_folder", "manage_tags", "update_frontmatter"]);
-  } finally {
-    await client.close();
-    await server.close();
-  }
-});
 
 test("create_folder and delete_folder work through the server", async () => {
   await writeFile(join(testVaultPath, "note.md"), "# Note");
@@ -470,8 +403,7 @@ test("read-only mode exposes read tools and rejects every vault mutation", async
     expect(toolNames).not.toContain("create_folder");
     expect(toolNames).not.toContain("delete_folder");
     for (const tool of listedTools.tools) {
-      expect(tool.annotations?.readOnlyHint, `${tool.name} readOnlyHint`).toBe(true);
-      expect(tool._meta?.["anthropic/requiresUserInteraction"], `${tool.name} _meta`).toBeUndefined();
+      expect(MUTATING_TOOLS, `${tool.name} listed in read-only mode`).not.toContain(tool.name);
     }
 
     const readResult = await client.callTool({

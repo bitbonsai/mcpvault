@@ -83,8 +83,6 @@ website-shibumi/       # Bun + Hono + TSX website serving mcpvault.org (separate
 | create_folder | Create a folder with its parents (idempotent; refuses dot folders, existing files, case-only sibling clashes) |
 | delete_folder | Delete an empty folder, or move a non-empty one to `.trash` with `recursive` + `trashMode: "local"` (requires path confirmation) |
 
-Every tool definition carries MCP tool annotations (`title`, `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`). Tools in `MUTATING_TOOLS` are also returned with `_meta["anthropic/requiresUserInteraction"]: true` from `tools/list`, so a new mutating tool gets both for free by being added to the set and annotated inline.
-
 ### Design Patterns
 
 - **Service layer**: Each service has single responsibility, dependency-injected into server.ts, independently testable

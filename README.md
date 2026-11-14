@@ -119,7 +119,6 @@ An MCP client starts MCPVault as a local stdio process and passes the vault path
   - Wiki links: `wiki_link` resolves names and returns alternative paths when a name is ambiguous
 - `write_note` supports overwrite, append, and prepend modes.
 - `delete_note`, `delete_folder`, and `move_file` require matching confirmation paths.
-- Every tool carries MCP tool annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`), and mutating tools are flagged with `_meta["anthropic/requiresUserInteraction"]` so clients that honor it can ask before each write.
 - Path arguments are trimmed before validation.
 - Search and batch tools return compact fields by default; set `prettyPrint: true` for expanded output.
 - The package exports TypeScript declarations and public types.
