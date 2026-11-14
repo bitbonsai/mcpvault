@@ -400,3 +400,24 @@ test("failed directory move_note is followed by list, read, and a valid move", a
     await server.close();
   }
 }, 10_000);
+
+test("MCP tool annotations classify every tool through the public client API", async () => {
+  const { server, client } = await connectClient();
+  const readTools = new Set(["read_note","list_directory","search_notes","read_multiple_notes","get_notes_info","get_frontmatter","get_vault_stats","list_all_tags","wiki_link","get_note_outline","read_note_lines"]);
+  const mutatingTools = new Set(["write_note","patch_note","delete_note","move_note","move_file","update_frontmatter","manage_tags"]);
+  try {
+    const { tools } = await client.listTools();
+    expect(tools.map((tool) => tool.name).sort()).toEqual([...readTools, ...mutatingTools].sort());
+    for (const tool of tools) {
+      const isRead = readTools.has(tool.name);
+      expect(tool.annotations, `${tool.name} missing annotations`).toMatchObject({
+        readOnlyHint: isRead,
+        destructiveHint: !isRead,
+        openWorldHint: false,
+      });
+    }
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
