@@ -2394,3 +2394,314 @@ describe("findPathForWikiLink (#101)", () => {
     expect(matches).toEqual(["a/b/Note.md"]);
   });
 });
+
+// ============================================================================
+// WRITE_NOTE APPEND/PREPEND LINE JOINING (#273)
+// ============================================================================
+
+describe("writeNote append/prepend joins on a line boundary (#273)", () => {
+  test("append onto content without a trailing newline inserts one line break", async () => {
+    await writeFile(join(testVaultPath, "a.md"), "line one\nline two");
+
+    await fileSystem.writeNote({ path: "a.md", content: "line three", mode: "append" });
+
+    expect(await readFile(join(testVaultPath, "a.md"), "utf-8")).toBe("line one\nline two\nline three");
+  });
+
+  test("append onto content with a trailing newline adds no blank line", async () => {
+    await writeFile(join(testVaultPath, "b.md"), "line one\nline two\n");
+
+    await fileSystem.writeNote({ path: "b.md", content: "line three", mode: "append" });
+
+    expect(await readFile(join(testVaultPath, "b.md"), "utf-8")).toBe("line one\nline two\nline three");
+  });
+
+  test("append of text that starts with a newline adds nothing", async () => {
+    await writeFile(join(testVaultPath, "lead.md"), "line one");
+
+    await fileSystem.writeNote({ path: "lead.md", content: "\n\n## Update\n", mode: "append" });
+
+    expect(await readFile(join(testVaultPath, "lead.md"), "utf-8")).toBe("line one\n\n## Update\n");
+  });
+
+  test("prepend onto content that starts with a newline adds nothing", async () => {
+    await writeFile(join(testVaultPath, "lead-prepend.md"), "\n# Title\n");
+
+    await fileSystem.writeNote({ path: "lead-prepend.md", content: "line zero", mode: "prepend" });
+
+    expect(await readFile(join(testVaultPath, "lead-prepend.md"), "utf-8")).toBe("line zero\n# Title\n");
+  });
+
+  test("prepend inserts one line break after the new text", async () => {
+    await writeFile(join(testVaultPath, "c.md"), "# Title\nbody\n");
+
+    await fileSystem.writeNote({ path: "c.md", content: "line zero", mode: "prepend" });
+
+    expect(await readFile(join(testVaultPath, "c.md"), "utf-8")).toBe("line zero\n# Title\nbody\n");
+  });
+
+  test("prepend with new text already ending in a newline adds nothing", async () => {
+    await writeFile(join(testVaultPath, "d.md"), "# Title\n");
+
+    await fileSystem.writeNote({ path: "d.md", content: "line zero\n", mode: "prepend" });
+
+    expect(await readFile(join(testVaultPath, "d.md"), "utf-8")).toBe("line zero\n# Title\n");
+  });
+
+  test("append keeps CRLF line endings and uses CRLF for the inserted break", async () => {
+    await writeFile(join(testVaultPath, "crlf.md"), "---\r\ntitle: Log\r\n---\r\nline one\r\nline two");
+
+    await fileSystem.writeNote({ path: "crlf.md", content: "line three", mode: "append" });
+
+    const raw = await readFile(join(testVaultPath, "crlf.md"), "utf-8");
+    expect(raw).toBe("---\r\ntitle: Log\r\n---\r\nline one\r\nline two\r\nline three");
+    expect(raw.replaceAll("\r\n", "")).not.toMatch(/[\r\n]/);
+  });
+
+  test("append and prepend onto empty content do not insert a separator", async () => {
+    await writeFile(join(testVaultPath, "empty-append.md"), "");
+    await writeFile(join(testVaultPath, "empty-prepend.md"), "");
+
+    await fileSystem.writeNote({ path: "empty-append.md", content: "first line", mode: "append" });
+    await fileSystem.writeNote({ path: "empty-prepend.md", content: "first line", mode: "prepend" });
+
+    expect(await readFile(join(testVaultPath, "empty-append.md"), "utf-8")).toBe("first line");
+    expect(await readFile(join(testVaultPath, "empty-prepend.md"), "utf-8")).toBe("first line");
+  });
+
+  test("append with frontmatter keeps the body join on a line boundary", async () => {
+    await writeFile(join(testVaultPath, "fm.md"), "---\ntitle: Log\n---\nline two");
+
+    await fileSystem.writeNote({ path: "fm.md", content: "line three", frontmatter: { status: "ok" }, mode: "append" });
+
+    const note = await fileSystem.readNote("fm.md");
+    expect(note.frontmatter).toEqual({ title: "Log", status: "ok" });
+    expect(note.content).toBe("line two\nline three");
+  });
+});
+
+// ============================================================================
+// MOVE_NOTE WIKI LINK UPDATES (#274)
+// ============================================================================
+
+describe("moveNote wiki links in other notes (#274)", () => {
+  test("rewrites every link form that targets the moved note and reports counts", async () => {
+    await mkdir(join(testVaultPath, "notes"), { recursive: true });
+    await mkdir(join(testVaultPath, "deep/nested"), { recursive: true });
+    await writeFile(join(testVaultPath, "notes/Old.md"), "# Old\n");
+    const referrer = [
+      "Plain [[Old]] link.",
+      "Alias [[Old|the old note]] link.",
+      "Heading [[Old#Section]] link.",
+      "Heading and alias [[Old#Section|see section]] link.",
+      "Embed ![[Old]] here.",
+      "Path [[notes/Old]] and with extension [[notes/Old.md]].",
+      "Not these: [[Older]] [[Old-thing]] [[Old Notes]] [[other/Old]].",
+      ""
+    ].join("\n");
+    await writeFile(join(testVaultPath, "referrer.md"), referrer);
+    await writeFile(join(testVaultPath, "deep/nested/other.md"), "See [[Old|old]] and [[Older]].\n");
+    await writeFile(join(testVaultPath, "untouched.md"), "Only [[Older]] and [[Old-thing]] here.\n");
+
+    const result = await fileSystem.moveNote({ oldPath: "notes/Old.md", newPath: "archive/New.md", updateLinks: true });
+
+    expect(result.success).toBe(true);
+    expect(result.linksUpdated).toBe(8);
+    expect(result.notesUpdated).toEqual(["deep/nested/other.md", "referrer.md"]);
+    expect(result.message).toContain("8 wiki link");
+    expect(result.message).toContain("2 note");
+
+    expect(await readFile(join(testVaultPath, "referrer.md"), "utf-8")).toBe([
+      "Plain [[New]] link.",
+      "Alias [[New|the old note]] link.",
+      "Heading [[New#Section]] link.",
+      "Heading and alias [[New#Section|see section]] link.",
+      "Embed ![[New]] here.",
+      "Path [[archive/New]] and with extension [[archive/New]].",
+      "Not these: [[Older]] [[Old-thing]] [[Old Notes]] [[other/Old]].",
+      ""
+    ].join("\n"));
+    expect(await readFile(join(testVaultPath, "deep/nested/other.md"), "utf-8")).toBe("See [[New|old]] and [[Older]].\n");
+    expect(await readFile(join(testVaultPath, "untouched.md"), "utf-8")).toBe("Only [[Older]] and [[Old-thing]] here.\n");
+    expect(await readFile(join(testVaultPath, "archive/New.md"), "utf-8")).toBe("# Old\n");
+  });
+
+  test("matches the basename case-sensitively", async () => {
+    await writeFile(join(testVaultPath, "Old.md"), "# Old\n");
+    await writeFile(join(testVaultPath, "ref.md"), "[[old]] and [[OLD]] and [[Old]]\n");
+
+    const result = await fileSystem.moveNote({ oldPath: "Old.md", newPath: "New.md", updateLinks: true });
+
+    expect(result.success).toBe(true);
+    expect(result.linksUpdated).toBe(1);
+    expect(await readFile(join(testVaultPath, "ref.md"), "utf-8")).toBe("[[old]] and [[OLD]] and [[New]]\n");
+  });
+
+  test("preserves CRLF line endings in rewritten notes and only rewrites changed notes", async () => {
+    await writeFile(join(testVaultPath, "Old.md"), "# Old\n");
+    await writeFile(join(testVaultPath, "crlf.md"), "First [[Old]]\r\nSecond [[Older]]\r\n");
+    await writeFile(join(testVaultPath, "plain.md"), "No links\n");
+    const plainBefore = (await (await import("fs/promises")).stat(join(testVaultPath, "plain.md"))).mtimeMs;
+
+    const result = await fileSystem.moveNote({ oldPath: "Old.md", newPath: "New.md", updateLinks: true });
+
+    expect(result.success).toBe(true);
+    expect(result.linksUpdated).toBe(1);
+    expect(result.notesUpdated).toEqual(["crlf.md"]);
+    expect(await readFile(join(testVaultPath, "crlf.md"), "utf-8")).toBe("First [[New]]\r\nSecond [[Older]]\r\n");
+    expect((await (await import("fs/promises")).stat(join(testVaultPath, "plain.md"))).mtimeMs).toBe(plainBefore);
+  });
+
+  test("reports zero updates when nothing links to the moved note", async () => {
+    await writeFile(join(testVaultPath, "Old.md"), "# Old\n");
+    await writeFile(join(testVaultPath, "ref.md"), "[[Another]]\n");
+
+    const result = await fileSystem.moveNote({ oldPath: "Old.md", newPath: "New.md", updateLinks: true });
+
+    expect(result.success).toBe(true);
+    expect(result.linksUpdated).toBe(0);
+    expect(result.notesUpdated).toEqual([]);
+    expect(await readFile(join(testVaultPath, "ref.md"), "utf-8")).toBe("[[Another]]\n");
+  });
+  test("does not touch other notes by default and reports linkedFrom", async () => {
+    await writeFile(join(testVaultPath, "Old.md"), "# Old\n");
+    await writeFile(join(testVaultPath, "a.md"), "See [[Old]].\n");
+    await writeFile(join(testVaultPath, "b.md"), "Embed ![[Old#Part|x]].\n");
+    await writeFile(join(testVaultPath, "c.md"), "Unrelated [[Older]].\n");
+
+    const result = await fileSystem.moveNote({ oldPath: "Old.md", newPath: "New.md" });
+
+    expect(result.success).toBe(true);
+    expect(result.linkedFrom).toEqual(["a.md", "b.md"]);
+    expect(result.linksUpdated).toBeUndefined();
+    expect(result.notesUpdated).toBeUndefined();
+    expect(result.message).toContain("2 notes still link to the old name");
+    expect(result.message).toContain("updateLinks=true");
+    expect(await readFile(join(testVaultPath, "a.md"), "utf-8")).toBe("See [[Old]].\n");
+    expect(await readFile(join(testVaultPath, "b.md"), "utf-8")).toBe("Embed ![[Old#Part|x]].\n");
+  });
+
+  test("treats a non-boolean updateLinks as false", async () => {
+    await writeFile(join(testVaultPath, "Old.md"), "# Old\n");
+    await writeFile(join(testVaultPath, "a.md"), "See [[Old]].\n");
+
+    const result = await fileSystem.moveNote({ oldPath: "Old.md", newPath: "New.md", updateLinks: "true" as any });
+
+    expect(result.linkedFrom).toEqual(["a.md"]);
+    expect(await readFile(join(testVaultPath, "a.md"), "utf-8")).toBe("See [[Old]].\n");
+  });
+
+  test("leaves bare links alone when another note still has the old basename", async () => {
+    await mkdir(join(testVaultPath, "projects"), { recursive: true });
+    await mkdir(join(testVaultPath, "archive"), { recursive: true });
+    await writeFile(join(testVaultPath, "projects/Plan.md"), "# Project plan\n");
+    await writeFile(join(testVaultPath, "archive/Plan.md"), "# Archived plan\n");
+    await writeFile(join(testVaultPath, "ref.md"), "Bare [[Plan]] and path [[projects/Plan|p]] and ![[projects/Plan.md]].\n");
+    await writeFile(join(testVaultPath, "only-bare.md"), "Just [[Plan#Goals]].\n");
+
+    const result = await fileSystem.moveNote({ oldPath: "projects/Plan.md", newPath: "projects/Roadmap.md", updateLinks: true });
+
+    expect(result.success).toBe(true);
+    expect(result.linksUpdated).toBe(2);
+    expect(result.notesUpdated).toEqual(["ref.md"]);
+    expect(result.ambiguousLinksSkipped).toEqual(["only-bare.md", "ref.md"]);
+    expect(result.message).toContain("another note is still named Plan");
+    expect(await readFile(join(testVaultPath, "ref.md"), "utf-8"))
+      .toBe("Bare [[Plan]] and path [[projects/Roadmap|p]] and ![[projects/Roadmap]].\n");
+    expect(await readFile(join(testVaultPath, "only-bare.md"), "utf-8")).toBe("Just [[Plan#Goals]].\n");
+  });
+
+  test("reports ambiguous bare links without updateLinks too", async () => {
+    await mkdir(join(testVaultPath, "a"), { recursive: true });
+    await mkdir(join(testVaultPath, "b"), { recursive: true });
+    await writeFile(join(testVaultPath, "a/Plan.md"), "# A\n");
+    await writeFile(join(testVaultPath, "b/Plan.md"), "# B\n");
+    await writeFile(join(testVaultPath, "ref.md"), "[[Plan]] and [[a/Plan]]\n");
+
+    const result = await fileSystem.moveNote({ oldPath: "a/Plan.md", newPath: "a/Other.md" });
+
+    expect(result.linkedFrom).toEqual(["ref.md"]);
+    expect(result.ambiguousLinksSkipped).toEqual(["ref.md"]);
+    expect(await readFile(join(testVaultPath, "ref.md"), "utf-8")).toBe("[[Plan]] and [[a/Plan]]\n");
+  });
+
+  test("does not rewrite or report a bare link that would stay the same", async () => {
+    await mkdir(join(testVaultPath, "inbox"), { recursive: true });
+    await writeFile(join(testVaultPath, "inbox/Idea.md"), "# Idea\n");
+    await writeFile(join(testVaultPath, "ref.md"), "See [[Idea]].\n");
+    const before = (await (await import("fs/promises")).stat(join(testVaultPath, "ref.md"))).mtimeMs;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const result = await fileSystem.moveNote({ oldPath: "inbox/Idea.md", newPath: "done/Idea.md", updateLinks: true });
+
+    expect(result.success).toBe(true);
+    expect(result.linksUpdated).toBe(0);
+    expect(result.notesUpdated).toEqual([]);
+    expect(await readFile(join(testVaultPath, "ref.md"), "utf-8")).toBe("See [[Idea]].\n");
+    expect((await (await import("fs/promises")).stat(join(testVaultPath, "ref.md"))).mtimeMs).toBe(before);
+  });
+});
+
+// ============================================================================
+// MANAGE_TAGS KEEPS INLINE TAGS OUT OF FRONTMATTER (#275)
+// ============================================================================
+
+describe("manageTags writes only frontmatter tags (#275)", () => {
+  const note = "---\ntitle: Note\ntags:\n  - alpha\n---\nBody with #beta inline.\n";
+
+  test("add does not promote inline tags into frontmatter", async () => {
+    await writeFile(join(testVaultPath, "t.md"), note);
+
+    const result = await fileSystem.manageTags({ path: "t.md", operation: "add", tags: ["gamma"] });
+
+    expect(result.success).toBe(true);
+    expect(result.tags).toEqual(["alpha", "gamma"]);
+    const parsed = await fileSystem.readNote("t.md");
+    expect(parsed.frontmatter.tags).toEqual(["alpha", "gamma"]);
+    expect(parsed.frontmatter.title).toBe("Note");
+    expect(parsed.content).toBe("Body with #beta inline.\n");
+  });
+
+  test("adding a tag that exists inline is reported as already present and changes nothing", async () => {
+    await writeFile(join(testVaultPath, "t.md"), note);
+
+    const result = await fileSystem.manageTags({ path: "t.md", operation: "add", tags: ["beta"] });
+
+    expect(result.success).toBe(true);
+    expect(result.tags).toEqual(["alpha"]);
+    expect(result.message).toMatch(/already present/i);
+    expect(await readFile(join(testVaultPath, "t.md"), "utf-8")).toBe(note);
+  });
+
+  test("remove leaves inline tags where they are", async () => {
+    await writeFile(join(testVaultPath, "t.md"), note);
+
+    const result = await fileSystem.manageTags({ path: "t.md", operation: "remove", tags: ["alpha"] });
+
+    expect(result.success).toBe(true);
+    expect(result.tags).toEqual([]);
+    const parsed = await fileSystem.readNote("t.md");
+    expect(parsed.frontmatter.tags).toBeUndefined();
+    expect(parsed.content).toBe("Body with #beta inline.\n");
+  });
+
+  test("removing an inline-only tag reports not found and does not edit the body", async () => {
+    await writeFile(join(testVaultPath, "t.md"), note);
+
+    const result = await fileSystem.manageTags({ path: "t.md", operation: "remove", tags: ["beta"] });
+
+    expect(result.success).toBe(true);
+    expect(result.tags).toEqual(["alpha"]);
+    expect(result.message).toMatch(/not found/i);
+    expect(await readFile(join(testVaultPath, "t.md"), "utf-8")).toBe(note);
+  });
+
+  test("list still reports frontmatter and inline tags together", async () => {
+    await writeFile(join(testVaultPath, "t.md"), note);
+
+    const result = await fileSystem.manageTags({ path: "t.md", operation: "list" });
+
+    expect(result.success).toBe(true);
+    expect(result.tags).toEqual(["alpha", "beta"]);
+  });
+});

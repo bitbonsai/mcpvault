@@ -129,13 +129,14 @@ export function createServer(vaultPath, options = {}) {
             },
             {
                 name: "move_note",
-                description: "Move or rename a note in the vault",
+                description: "Move or rename a note in the vault. By default other notes are not changed: the result lists notes that still link to the old name (linkedFrom). Set updateLinks=true to rewrite those [[wikilinks]] to the new name; bare [[Name]] links are left alone when another note still has the old name.",
                 inputSchema: {
                     type: "object",
                     properties: {
                         oldPath: { type: "string", description: "Current path of the note" },
                         newPath: { type: "string", description: "New path for the note" },
-                        overwrite: { type: "boolean", description: "Allow overwriting existing file (default: false)", default: false }
+                        overwrite: { type: "boolean", description: "Allow overwriting existing file (default: false)", default: false },
+                        updateLinks: { type: "boolean", description: "Rewrite [[wikilinks]] in other notes to the new name (default: false)", default: false }
                     },
                     required: ["oldPath", "newPath"]
                 }
@@ -381,7 +382,8 @@ export function createServer(vaultPath, options = {}) {
                     const result = await fileSystem.moveNote({
                         oldPath: trimmedArgs.oldPath,
                         newPath: trimmedArgs.newPath,
-                        overwrite: trimmedArgs.overwrite
+                        overwrite: trimmedArgs.overwrite,
+                        updateLinks: trimmedArgs.updateLinks
                     });
                     return {
                         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
