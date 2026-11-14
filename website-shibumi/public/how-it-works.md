@@ -56,3 +56,9 @@ Practical prompts you can try with your AI assistant and MCPVault.
 | get_frontmatter | Extract frontmatter only |
 | manage_tags | Add, remove, or list tags |
 | get_vault_stats | Vault statistics: total notes, folders, size, recent files |
+| list_all_tags | List all tags across the vault with occurrence counts |
+| wiki_link | Resolve Obsidian [[wiki links]] (including path-qualified [[folder/Note]]) and return the note |
+| get_note_outline | Return note headings with levels and line numbers |
+| read_note_lines | Read an inclusive line range from a note |
+| create_folder | Create a folder with its parents (idempotent; refuses dot folders, existing files, and case-only name clashes) |
+| delete_folder | Delete an empty folder, or move a non-empty one to the vault trash (requires path confirmation) |

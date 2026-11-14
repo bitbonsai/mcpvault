@@ -81,6 +81,24 @@ export interface MoveFileParams {
     confirmNewPath: string;
     overwrite?: boolean;
 }
+export interface CreateFolderParams {
+    path: string;
+}
+export interface DeleteFolderParams {
+    path: string;
+    confirmPath: string;
+    /** Delete a non-empty folder; allowed only with trashMode 'local'. */
+    recursive?: boolean;
+    /** 'none' removes an empty folder permanently; 'local' moves the folder to .trash inside the vault. */
+    trashMode?: 'none' | 'local';
+}
+export interface FolderResult {
+    success: boolean;
+    path: string;
+    message: string;
+    /** create_folder only: false when the folder already existed. */
+    created?: boolean;
+}
 export interface MoveResult {
     success: boolean;
     oldPath: string;

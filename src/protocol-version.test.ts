@@ -41,7 +41,7 @@ test("serves legacy handshake-based MCP clients", async () => {
   try {
     const result = await client.listTools();
     expect(client.getProtocolEra()).toBe("legacy");
-    expect(result.tools).toHaveLength(18);
+    expect(result.tools).toHaveLength(20);
     expect(result.tools[0]?.name).toBe("read_note");
   } finally {
     await client.close();
@@ -53,7 +53,7 @@ test("serves MCP 2026-07-28 clients", async () => {
   try {
     const result = await client.listTools();
     expect(client.getProtocolEra()).toBe("modern");
-    expect(result.tools).toHaveLength(18);
+    expect(result.tools).toHaveLength(20);
     expect(result.tools[0]?.name).toBe("read_note");
   } finally {
     await client.close();

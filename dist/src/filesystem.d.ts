@@ -1,6 +1,6 @@
 import { FrontmatterHandler } from './frontmatter.js';
 import { PathFilter } from './pathfilter.js';
-import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats, NoteHeading, ReadNoteLinesParams } from './types.js';
+import type { ParsedNote, DirectoryListing, NoteWriteParams, DeleteNoteParams, DeleteResult, MoveNoteParams, MoveFileParams, MoveResult, CreateFolderParams, DeleteFolderParams, FolderResult, BatchReadParams, BatchReadResult, UpdateFrontmatterParams, NoteInfo, TagManagementParams, TagManagementResult, PatchNoteParams, PatchNoteResult, VaultStats, NoteHeading, ReadNoteLinesParams } from './types.js';
 /**
  * Map a filesystem write failure to a clear, accurate Error.
  *
@@ -33,6 +33,40 @@ export declare class FileSystemService {
     exists(path: string): Promise<boolean>;
     isDirectory(path: string): Promise<boolean>;
     deleteNote(params: DeleteNoteParams): Promise<DeleteResult>;
+    /**
+     * Normalize a folder path argument: vault-relative, no trailing slashes.
+     */
+    private normalizeFolderPath;
+    /**
+     * Folder paths may not contain "." or ".." segments: the path filter's
+     * canonical form strips trailing dots, so "." would otherwise pass and
+     * resolve to the vault root itself.
+     */
+    private isAllowedFolderPath;
+    /**
+     * Resolve a folder path inside the vault and check that the real location of
+     * its nearest existing ancestor is not a restricted path. Without this, a
+     * symlinked folder inside the vault (e.g. `link -> .obsidian`) would let the
+     * folder tools create or remove folders under a restricted directory.
+     */
+    private resolveFolderPath;
+    private static folderErrorCode;
+    /**
+     * Create a folder (and its parents) inside the vault. Idempotent: an existing
+     * folder is reported as success with `created: false`. Refuses the vault root,
+     * dot folders and restricted names, a path that is an existing file, and a
+     * name differing only in case from an existing sibling (Obsidian Sync on a
+     * case-insensitive device keeps only one of the two).
+     */
+    createFolder(params: CreateFolderParams): Promise<FolderResult>;
+    /**
+     * Delete a folder. By default only an empty folder is removed (rmdir).
+     * recursive=true is accepted only with trashMode 'local', which moves the
+     * whole folder to .trash/<path> so it can be restored: this server never
+     * erases a non-empty folder for good. Refuses the vault root, dot folders,
+     * symbolic links and paths outside the vault.
+     */
+    deleteFolder(params: DeleteFolderParams): Promise<FolderResult>;
     moveNote(params: MoveNoteParams): Promise<MoveResult>;
     moveFile(params: MoveFileParams): Promise<MoveResult>;
     readMultipleNotes(params: BatchReadParams): Promise<BatchReadResult>;

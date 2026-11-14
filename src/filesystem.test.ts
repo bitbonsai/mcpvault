@@ -2394,3 +2394,354 @@ describe("findPathForWikiLink (#101)", () => {
     expect(matches).toEqual(["a/b/Note.md"]);
   });
 });
+
+describe("createFolder", () => {
+  test("creates a folder and its parents", async () => {
+    const result = await fileSystem.createFolder({ path: "Projects/2026/Q1" });
+
+    expect(result.success).toBe(true);
+    expect(result.path).toBe("Projects/2026/Q1");
+    expect(result.message).toContain("Successfully created folder");
+    expect(await fileSystem.isDirectory("Projects/2026/Q1")).toBe(true);
+  });
+
+  test("strips a leading slash and reports the vault-relative path", async () => {
+    const result = await fileSystem.createFolder({ path: "/Inbox" });
+
+    expect(result.success).toBe(true);
+    expect(result.path).toBe("Inbox");
+    expect(await fileSystem.isDirectory("Inbox")).toBe(true);
+  });
+
+  test("refuses the vault root", async () => {
+    for (const root of ["", "/", testVaultPath]) {
+      const result = await fileSystem.createFolder({ path: root });
+      expect(result.success, `root form ${JSON.stringify(root)}`).toBe(false);
+      expect(result.message).toContain("Cannot create the vault root");
+    }
+  });
+
+  test("refuses dot folders and restricted names", async () => {
+    for (const path of [".trash", ".obsidian/plugins", "Notes/.hidden", ".git", "node_modules/pkg"]) {
+      const result = await fileSystem.createFolder({ path });
+      expect(result.success, path).toBe(false);
+      expect(result.message).toContain("Access denied");
+    }
+    expect(await readdir(testVaultPath)).toEqual([]);
+  });
+
+  test("refuses a path outside the vault", async () => {
+    const result = await fileSystem.createFolder({ path: "../escape" });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Path traversal not allowed");
+  });
+
+  test("is idempotent for an existing folder", async () => {
+    await mkdir(join(testVaultPath, "Existing"));
+
+    const result = await fileSystem.createFolder({ path: "Existing" });
+
+    expect(result.success).toBe(true);
+    expect(result.created).toBe(false);
+    expect(result.message).toContain("Folder already exists: Existing");
+  });
+
+  test("refuses a path that is an existing file", async () => {
+    await writeFile(join(testVaultPath, "note.md"), "# Note");
+
+    const result = await fileSystem.createFolder({ path: "note.md" });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Path is an existing file: note.md");
+    expect(await readFile(join(testVaultPath, "note.md"), "utf-8")).toBe("# Note");
+  });
+
+  test("refuses a name that differs only in case from an existing sibling", async () => {
+    await mkdir(join(testVaultPath, "Projects"));
+    await writeFile(join(testVaultPath, "Projects/Readme.md"), "# Readme");
+
+    const sibling = await fileSystem.createFolder({ path: "projects" });
+    expect(sibling.success).toBe(false);
+    // On a case-insensitive filesystem the existing folder is found first.
+    expect(sibling.message).toMatch(/differs only in case from the existing "Projects"|Folder already exists/);
+
+    const nested = await fileSystem.createFolder({ path: "Projects/readme.md" });
+    expect(nested.success).toBe(false);
+    expect(nested.message).toMatch(/differs only in case from the existing "Readme.md"|Path is an existing file/);
+
+    const deeper = await fileSystem.createFolder({ path: "PROJECTS/new" });
+    expect(deeper.success).toBe(false);
+    expect(deeper.message).toMatch(/differs only in case from the existing "Projects"/);
+
+    expect((await readdir(testVaultPath)).sort()).toEqual(["Projects"]);
+    expect((await readdir(join(testVaultPath, "Projects"))).sort()).toEqual(["Readme.md"]);
+  });
+
+  test("allows a new sibling whose name is merely similar", async () => {
+    await mkdir(join(testVaultPath, "Projects"));
+
+    const result = await fileSystem.createFolder({ path: "Projects-archive" });
+
+    expect(result.success).toBe(true);
+    expect(await fileSystem.isDirectory("Projects-archive")).toBe(true);
+  });
+});
+
+describe("deleteFolder", () => {
+  test("deletes an empty folder", async () => {
+    await mkdir(join(testVaultPath, "Empty"));
+
+    const result = await fileSystem.deleteFolder({ path: "Empty", confirmPath: "Empty" });
+
+    expect(result.success).toBe(true);
+    expect(result.path).toBe("Empty");
+    expect(result.message).toContain("Successfully deleted empty folder: Empty");
+    expect(await fileSystem.exists("Empty")).toBe(false);
+  });
+
+  test("moves a non-empty folder to the vault trash with recursive and trashMode local", async () => {
+    await mkdir(join(testVaultPath, "Archive/2025"), { recursive: true });
+    await writeFile(join(testVaultPath, "Archive/2025/old.md"), "# Old");
+    await writeFile(join(testVaultPath, "Archive/index.md"), "# Index");
+
+    const result = await fileSystem.deleteFolder({
+      path: "Archive",
+      confirmPath: "Archive",
+      recursive: true,
+      trashMode: "local",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("Successfully moved folder to vault trash: Archive (2 entries)");
+    expect(await fileSystem.exists("Archive")).toBe(false);
+    // .trash/ is filtered from vault visibility; verify via raw fs
+    expect(await readFile(join(testVaultPath, ".trash/Archive/2025/old.md"), "utf-8")).toBe("# Old");
+    expect(await readFile(join(testVaultPath, ".trash/Archive/index.md"), "utf-8")).toBe("# Index");
+  });
+
+  test("keeps an existing trash entry when a second folder with the same path is trashed", async () => {
+    await mkdir(join(testVaultPath, ".trash/Archive"), { recursive: true });
+    await writeFile(join(testVaultPath, ".trash/Archive/first.md"), "first");
+    await mkdir(join(testVaultPath, "Archive"));
+    await writeFile(join(testVaultPath, "Archive/second.md"), "second");
+
+    const result = await fileSystem.deleteFolder({
+      path: "Archive",
+      confirmPath: "Archive",
+      recursive: true,
+      trashMode: "local",
+    });
+
+    expect(result.success).toBe(true);
+    expect(await readFile(join(testVaultPath, ".trash/Archive/first.md"), "utf-8")).toBe("first");
+    const trashEntries = (await readdir(join(testVaultPath, ".trash"))).filter((name) => name.startsWith("Archive-"));
+    expect(trashEntries).toHaveLength(1);
+    expect(await readFile(join(testVaultPath, ".trash", trashEntries[0]!, "second.md"), "utf-8")).toBe("second");
+  });
+
+  test("moves an empty folder to the vault trash with trashMode local", async () => {
+    await mkdir(join(testVaultPath, "Empty"));
+
+    const result = await fileSystem.deleteFolder({ path: "Empty", confirmPath: "Empty", trashMode: "local" });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("vault trash: Empty (0 entries)");
+    expect(await fileSystem.exists("Empty")).toBe(false);
+    expect(await readdir(join(testVaultPath, ".trash/Empty"))).toEqual([]);
+  });
+
+  test("rejects a mismatched confirmation path before any other check", async () => {
+    await mkdir(join(testVaultPath, "Keep"));
+
+    const result = await fileSystem.deleteFolder({ path: "Keep", confirmPath: "Other" });
+
+    expect(result.success).toBe(false);
+    expect(result.path).toBe("Keep");
+    expect(result.message).toContain("confirmation path does not match");
+    expect(await fileSystem.isDirectory("Keep")).toBe(true);
+  });
+
+  test("refuses the vault root", async () => {
+    await writeFile(join(testVaultPath, "note.md"), "# Note");
+
+    for (const root of ["", "/", testVaultPath]) {
+      const result = await fileSystem.deleteFolder({ path: root, confirmPath: root, recursive: true, trashMode: "local" });
+      expect(result.success, `root form ${JSON.stringify(root)}`).toBe(false);
+      expect(result.message).toContain("Cannot delete the vault root");
+    }
+    expect(await readFile(join(testVaultPath, "note.md"), "utf-8")).toBe("# Note");
+  });
+
+  test("refuses dot folders and restricted names", async () => {
+    await mkdir(join(testVaultPath, ".obsidian/plugins"), { recursive: true });
+    await mkdir(join(testVaultPath, ".trash"), { recursive: true });
+
+    for (const path of [".obsidian", ".obsidian/plugins", ".trash", ".git", "Notes/.hidden"]) {
+      const result = await fileSystem.deleteFolder({ path, confirmPath: path, recursive: true, trashMode: "local" });
+      expect(result.success, path).toBe(false);
+      expect(result.message).toContain("Access denied");
+    }
+    expect(await readdir(join(testVaultPath, ".obsidian"))).toEqual(["plugins"]);
+  });
+
+  test("refuses a path outside the vault", async () => {
+    const result = await fileSystem.deleteFolder({ path: "../outside", confirmPath: "../outside" });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Path traversal not allowed");
+  });
+
+  test("refuses a non-empty folder without recursive", async () => {
+    await mkdir(join(testVaultPath, "Full"));
+    await writeFile(join(testVaultPath, "Full/a.md"), "a");
+    await writeFile(join(testVaultPath, "Full/b.md"), "b");
+
+    for (const trashMode of [undefined, "none", "local"] as const) {
+      const result = await fileSystem.deleteFolder({
+        path: "Full",
+        confirmPath: "Full",
+        ...(trashMode !== undefined && { trashMode }),
+      });
+      expect(result.success, `trashMode ${trashMode}`).toBe(false);
+      expect(result.message).toContain("Folder is not empty: Full (2 entries)");
+    }
+    expect((await readdir(join(testVaultPath, "Full"))).sort()).toEqual(["a.md", "b.md"]);
+  });
+
+  test("refuses recursive deletion unless trashMode is local", async () => {
+    await mkdir(join(testVaultPath, "Full"));
+    await writeFile(join(testVaultPath, "Full/a.md"), "a");
+
+    const implicit = await fileSystem.deleteFolder({ path: "Full", confirmPath: "Full", recursive: true });
+    expect(implicit.success).toBe(false);
+    expect(implicit.message).toContain("Recursive deletion requires trashMode 'local'");
+
+    const explicit = await fileSystem.deleteFolder({ path: "Full", confirmPath: "Full", recursive: true, trashMode: "none" });
+    expect(explicit.success).toBe(false);
+    expect(explicit.message).toContain("Recursive deletion requires trashMode 'local'");
+
+    expect(await readFile(join(testVaultPath, "Full/a.md"), "utf-8")).toBe("a");
+  });
+
+  test("refuses trashMode system", async () => {
+    await mkdir(join(testVaultPath, "Empty"));
+
+    const result = await fileSystem.deleteFolder({
+      path: "Empty",
+      confirmPath: "Empty",
+      trashMode: "system" as unknown as "local",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Unsupported trashMode for folders: system");
+    expect(await fileSystem.isDirectory("Empty")).toBe(true);
+  });
+
+  test("refuses a file and points to delete_note", async () => {
+    await writeFile(join(testVaultPath, "note.md"), "# Note");
+
+    const result = await fileSystem.deleteFolder({ path: "note.md", confirmPath: "note.md" });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("is not a folder");
+    expect(result.message).toContain("delete_note");
+    expect(await readFile(join(testVaultPath, "note.md"), "utf-8")).toBe("# Note");
+  });
+
+  test("reports a missing folder", async () => {
+    const result = await fileSystem.deleteFolder({ path: "Missing", confirmPath: "Missing" });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Folder not found: Missing");
+  });
+});
+
+describe("createFolder review fixes", () => {
+  test("refuses dot segments, which the path filter would otherwise accept as the vault root", async () => {
+    for (const path of [".", "./", "a/./b"]) {
+      const result = await fileSystem.createFolder({ path });
+      expect(result.success, path).toBe(false);
+    }
+    expect(await readdir(testVaultPath)).toEqual([]);
+  });
+
+  test("refuses creating through a symlink into a restricted folder", async () => {
+    await mkdir(join(testVaultPath, ".obsidian"));
+    await symlink(join(testVaultPath, ".obsidian"), join(testVaultPath, "config-link"));
+    const result = await fileSystem.createFolder({ path: "config-link/plugins" });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("restricted");
+    expect(await readdir(join(testVaultPath, ".obsidian"))).toEqual([]);
+  });
+
+  test("refuses creating through a symlink that leaves the vault", async () => {
+    const outside = await mkdtemp(join(tmpdir(), "mcpvault-outside-"));
+    try {
+      await symlink(outside, join(testVaultPath, "escape"));
+      const result = await fileSystem.createFolder({ path: "escape/new" });
+      expect(result.success).toBe(false);
+      expect(await readdir(outside)).toEqual([]);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("deleteFolder review fixes", () => {
+  test("handles long runs of slashes in linear time", async () => {
+    const slashes = "/".repeat(100_000);
+    const started = Date.now();
+    const result = await fileSystem.deleteFolder({ path: `a${slashes}b`, confirmPath: `a${slashes}c` });
+    const trailing = await fileSystem.createFolder({ path: `Trail${slashes}` });
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(result.success).toBe(false);
+    expect(trailing).toMatchObject({ success: true, path: "Trail" });
+  });
+
+  test.each(["", "/", "."])("refuses the vault root (%j)", async (path) => {
+    const result = await fileSystem.deleteFolder({ path, confirmPath: path });
+    expect(result.success).toBe(false);
+  });
+
+
+  test("refuses a non-empty folder without recursive and names hidden entries", async () => {
+    await mkdir(join(testVaultPath, "Full"));
+    await writeFile(join(testVaultPath, "Full/.DS_Store"), "");
+    const result = await fileSystem.deleteFolder({ path: "Full", confirmPath: "Full" });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Folder is not empty: Full (1 entries, including hidden: .DS_Store)");
+  });
+
+  test("rejects a non-boolean recursive flag instead of treating it as truthy", async () => {
+    await mkdir(join(testVaultPath, "Full"));
+    await writeFile(join(testVaultPath, "Full/n.md"), "x");
+    const result = await fileSystem.deleteFolder({ path: "Full", confirmPath: "Full", recursive: "false" as any, trashMode: "local" });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Invalid recursive value");
+    expect(await readFile(join(testVaultPath, "Full/n.md"), "utf8")).toBe("x");
+  });
+
+  test("refuses a file, a missing folder and a symbolic link", async () => {
+    await writeFile(join(testVaultPath, "note.md"), "x");
+    await mkdir(join(testVaultPath, "real"));
+    await symlink(join(testVaultPath, "real"), join(testVaultPath, "link"));
+
+    const file = await fileSystem.deleteFolder({ path: "note.md", confirmPath: "note.md" });
+    expect(file.message).toContain("is not a folder");
+    const missing = await fileSystem.deleteFolder({ path: "nope", confirmPath: "nope" });
+    expect(missing.message).toContain("Folder not found");
+    const link = await fileSystem.deleteFolder({ path: "link", confirmPath: "link", recursive: true, trashMode: "local" });
+    expect(link.success).toBe(false);
+    expect(link.message).toContain("symbolic link");
+    expect((await readdir(testVaultPath)).sort()).toEqual(["link", "note.md", "real"]);
+  });
+
+  test("refuses deleting through a symlink into a restricted folder", async () => {
+    await mkdir(join(testVaultPath, ".obsidian/plugins"), { recursive: true });
+    await symlink(join(testVaultPath, ".obsidian"), join(testVaultPath, "config-link"));
+    const result = await fileSystem.deleteFolder({ path: "config-link/plugins", confirmPath: "config-link/plugins" });
+    expect(result.success).toBe(false);
+    expect(await readdir(join(testVaultPath, ".obsidian"))).toEqual(["plugins"]);
+  });
+});

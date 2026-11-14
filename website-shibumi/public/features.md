@@ -36,9 +36,9 @@ The package exports TypeScript declarations and public types for library use.
 
 Source code, tests, and issue tracking are public on GitHub.
 
-### 18 MCP tools
+### 20 MCP tools
 
-Tools cover note reads and writes, exact patches, file moves, search, tags, frontmatter, outlines, line ranges, and vault statistics.
+Tools cover note reads and writes, exact patches, file moves, folder creation and deletion, search, tags, frontmatter, outlines, line ranges, and vault statistics.
 
 ### MCP client support
 
@@ -59,7 +59,7 @@ The main difference is where each approach runs and which layer controls access 
 | Move operations | Built-in note and file moves with vault path checks | Depends on plugin endpoint | Depends on file editing tool |
 | Access boundary | Vault-scoped path and symlink checks | Follows plugin and Obsidian settings | Follows client filesystem permissions |
 
-MCPVault provides 18 tools, requires no Obsidian plugin, and supports five note file types.
+MCPVault provides 20 tools, requires no Obsidian plugin, and supports five note file types.
 
 ## FAQ
 

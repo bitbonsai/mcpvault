@@ -13,6 +13,8 @@ const MUTATING_TOOLS = new Set([
     "move_file",
     "update_frontmatter",
     "manage_tags",
+    "create_folder",
+    "delete_folder",
 ]);
 function normalizeSubtree(path) {
     let relativePath = path.trim().replace(/\\/g, "/");
@@ -284,6 +286,31 @@ export function createServer(vaultPath, options = {}) {
                     },
                     required: ["path", "startLine", "endLine"]
                 }
+            },
+            {
+                name: "create_folder",
+                description: "Create a folder in the vault, with its parents. Succeeds without changes if the folder already exists. Refuses dot folders, the vault root, a path that is an existing file, and a name that differs only in case from an existing sibling (case-only names break sync on case-insensitive devices).",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        path: { type: "string", description: "Folder path relative to vault root" }
+                    },
+                    required: ["path"]
+                }
+            },
+            {
+                name: "delete_folder",
+                description: "Delete a folder from the vault (requires confirmation). By default only an EMPTY folder is deleted. recursive=true is allowed only with trashMode 'local' and moves the whole folder to .trash/<path>; recursive with permanent deletion is refused. Dot folders, symbolic links and the vault root are refused.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        path: { type: "string", description: "Folder path relative to vault root" },
+                        confirmPath: { type: "string", description: "Confirmation: must exactly match the path parameter to proceed with deletion" },
+                        recursive: { type: "boolean", description: "Delete a non-empty folder with everything inside; allowed only with trashMode 'local' (default: false)", default: false },
+                        trashMode: { type: "string", enum: ["none", "local"], description: "'none' = remove an empty folder permanently (default), 'local' = move the folder to .trash inside the vault", default: "none" }
+                    },
+                    required: ["path", "confirmPath"]
+                }
             }
         ];
         return {
@@ -483,6 +510,25 @@ export function createServer(vaultPath, options = {}) {
                     });
                     return {
                         content: [{ type: "text", text }]
+                    };
+                }
+                case "create_folder": {
+                    const result = await fileSystem.createFolder({ path: trimmedArgs.path });
+                    return {
+                        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+                        isError: !result.success
+                    };
+                }
+                case "delete_folder": {
+                    const result = await fileSystem.deleteFolder({
+                        path: trimmedArgs.path,
+                        confirmPath: trimmedArgs.confirmPath,
+                        recursive: trimmedArgs.recursive,
+                        trashMode: trimmedArgs.trashMode
+                    });
+                    return {
+                        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+                        isError: !result.success
                     };
                 }
                 default:
