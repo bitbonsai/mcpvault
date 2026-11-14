@@ -38,6 +38,16 @@ interface Update {
 
 const OLDER_UPDATES: Update[] = [
   {
+    version: "v0.18.3",
+    date: "November 2026",
+    body: (
+      <>
+        Note metadata now recognizes frontmatter in CRLF notes.
+        LF behavior and note contents stay unchanged.
+      </>
+    ),
+  },
+  {
     version: "v0.18.2",
     date: "October 2026",
     body: (
@@ -500,7 +510,7 @@ export function UpdateCallout() {
         <div class="callout-body">
           <div class="updates-heading">
             <h3>
-              Recent updates <span class="version-pill">v0.18.3</span>
+              Recent updates <span class="version-pill">v0.18.4</span>
             </h3>
             <button
               type="button"
@@ -526,8 +536,10 @@ export function UpdateCallout() {
           </div>
 
           <p class="latest-update">
-            <span class="entry-version">v0.18.3 (November 2026):</span> Note metadata now recognizes frontmatter in CRLF notes.
-            LF behavior and note contents stay unchanged.
+            <span class="entry-version">v0.18.4 (November 2026):</span> Absolute note paths now work when the vault is opened through a symlink.
+            Reads no longer fail, and writes land in the right folder (
+            <a href="https://github.com/bitbonsai/mcpvault/pull/284" target="_blank" rel="noopener noreferrer">#284</a>
+            ).
           </p>
 
           <div id="older-updates" class="older-updates is-collapsed" data-updates-panel x-bind:class="{ 'is-expanded': expanded, 'is-collapsed': !expanded }">

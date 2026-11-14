@@ -76,6 +76,9 @@ describe("GET / (HTML)", () => {
     expect(body).toContain(`<span class="version-pill">v${packageVersion}</span>`);
     for (const content of [body, markdown]) {
       expect(content).toContain(`v${packageVersion} (November 2026)`);
+      expect(content).toContain("Absolute note paths now work when the vault is opened through a symlink.");
+      expect(content).toContain("https://github.com/bitbonsai/mcpvault/pull/284");
+      expect(content).toContain("v0.18.3 (November 2026)");
       expect(content).toContain("Note metadata now recognizes frontmatter in CRLF notes.");
       expect(content).toContain("LF behavior and note contents stay unchanged.");
       expect(content).toContain("v0.18.2 (October 2026)");
