@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `delete_note` refuses to delete the last note in the vault, in any trash mode. Obsidian Sync on mobile pauses itself on an empty vault ("Empty vault detected, sync paused to prevent accidental data loss"). Notes are files with a note extension outside `.obsidian`, `.trash` and other filtered paths; the check stops at the first other note found.
-- `write_note` (when creating a new note or parent folder), `move_note` and `move_file` refuse a destination name that differs only in case from an existing sibling file or folder, with the same message as `create_folder`. Case-only names lose one of the two entries on case-insensitive devices. Writing to the exact existing path and renaming a note to change only its own case still work.
+- `write_note` (when creating a new note or parent folder), `move_note` and `move_file` refuse a destination name that differs only in case from an existing sibling file or folder. The refusal names the existing entry and asks for another name. Case-only names lose one of the two entries on case-insensitive devices. Writing to the exact existing path and renaming a note to change only its own case still work.
 
 ## [0.18.3] - 2026-11-01
 

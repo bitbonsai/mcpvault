@@ -250,7 +250,7 @@ export class FileSystemService {
    * can clash); a segment that exists with the exact name never clashes.
    * `ignore` is the absolute path of a move's source, which may match its own
    * new name. Case-only names lose one of the two files on case-insensitive
-   * devices, so the write and move tools refuse them, as create_folder does.
+   * devices, so the write and move tools refuse them.
    */
   private async findCaseOnlyClash(fullPath: string, ignore?: string): Promise<string | undefined> {
     let currentDir = this.vaultPath;
