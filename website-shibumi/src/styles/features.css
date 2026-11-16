@@ -348,13 +348,18 @@
   overflow-x: auto;
 }
 
-[data-component="comparison-table"] .comparison-table {
-  min-width: 100%;
+/* The card carries the frame so the summary footer sits outside the
+   horizontally scrolling table and stays in view on narrow screens. */
+[data-component="comparison-table"] .comparison-card {
   background: rgba(23, 23, 23, 0.3);
   backdrop-filter: blur(24px);
   border-radius: 1rem;
   border: 1px solid rgba(38, 38, 38, 0.5);
   overflow: hidden;
+}
+
+[data-component="comparison-table"] .comparison-table {
+  min-width: 100%;
 }
 
 @media (max-width: 1024px) {
